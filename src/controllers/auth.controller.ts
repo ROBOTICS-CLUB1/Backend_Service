@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import jwt from "jsonwebtoken";
 import User from "../models/User";
+import { signToken } from "../utils/jwt";
 
 export const register = async (req: Request, res: Response) => {
   try {
@@ -20,10 +20,15 @@ export const register = async (req: Request, res: Response) => {
 
     await user.save();
 
-    return res.status(201).json({
-      message: "User registered successfully",
+    const token = signToken({
+      id: user._id.toString(),
+      role: user.role,
     });
-  } catch (error) {
+
+    return res.status(201).json({
+      token,
+    });
+  } catch {
     return res.status(500).json({
       message: "Server error",
     });
@@ -44,14 +49,13 @@ export const login = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET as string,
-      { expiresIn: "1h" }
-    );
+    const token = signToken({
+      id: user._id.toString(),
+      role: user.role,
+    });
 
     return res.json({ token });
-  } catch (error) {
+  } catch {
     return res.status(500).json({
       message: "Server error",
     });
