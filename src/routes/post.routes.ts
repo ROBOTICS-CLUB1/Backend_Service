@@ -6,6 +6,7 @@ import {
   deletePost,
 } from "../controllers/post.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
+import { adminMiddleware } from "../middleware/role.middleware";
 
 const router = Router();
 
@@ -13,8 +14,8 @@ router.use(authMiddleware);
 
 router.get("/", getPosts);
 
-router.post("/", createPost);
-router.put("/:id", updatePost);
-router.delete("/:id", deletePost);
+router.post("/", adminMiddleware, createPost);
+router.put("/:id", adminMiddleware, updatePost);
+router.delete("/:id", adminMiddleware, deletePost);
 
 export default router;
