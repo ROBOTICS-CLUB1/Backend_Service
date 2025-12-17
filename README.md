@@ -32,4 +32,6 @@ The Robotics Club Backend exposes a RESTful API built with TypeScript, Express, 
   - Easily extendable for pagination, search, logging, and additional resources
   - Ready for Swagger documentation at `/api/docs`
 
-Made by the Robotics Club Dev Team```
+```
+ Made by the Robotics Club Dev Team
+```
