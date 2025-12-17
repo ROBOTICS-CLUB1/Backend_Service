@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   getPosts,
+  getPost,
   createPost,
   updatePost,
   deletePost,
@@ -13,6 +14,7 @@ const router = Router();
 router.use(authMiddleware);
 
 router.get("/", getPosts);
+router.get("/:id",getPost);
 
 router.post("/", adminMiddleware, createPost);
 router.put("/:id", adminMiddleware, updatePost);
