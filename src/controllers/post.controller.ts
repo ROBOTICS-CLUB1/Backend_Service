@@ -10,11 +10,22 @@ export const getPosts = async (req: Request, res: Response) => {
   }
 };
 
+export const getPost = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const post = await Post.findById(id);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+    return res.json(post);
+  } catch {
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
 export const createPost = async (req: Request, res: Response) => {
   try {
     const { title, content } = req.body;
 
-    const author = (req.user as { id: string; role: "user" | "admin" }).id;
+    const author = req.user!.id;
 
     const post = new Post({ title, content, author });
     await post.save();
