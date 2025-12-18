@@ -1,3 +1,5 @@
+// src/controllers/postController.ts
+
 import { Request, Response } from "express";
 import Post from "../models/Post";
 import Tag from "../models/Tag";
@@ -7,7 +9,49 @@ import { uploadImage } from "../services/image.service";
  * @swagger
  * tags:
  *   name: Posts
- *   description: Manage posts (CRUD)
+ *   description: Manage posts (CRUD operations with optional image upload)
+ */
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Post:
+ *       type: object
+ *       properties:
+ *         _id:
+ *           type: string
+ *         title:
+ *           type: string
+ *         content:
+ *           type: string
+ *         author:
+ *           type: object
+ *           properties:
+ *             _id:
+ *               type: string
+ *             username:
+ *               type: string
+ *         tags:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/Tag'
+ *         mainTag:
+ *           $ref: '#/components/schemas/Tag'
+ *         imageUrl:
+ *           type: string
+ *           nullable: true
+ *           description: URL of the featured image (if uploaded)
+ *         imagePublicId:
+ *           type: string
+ *           nullable: true
+ *           description: Cloudinary public_id for future deletion/replacement
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
  */
 
 /**
@@ -15,6 +59,7 @@ import { uploadImage } from "../services/image.service";
  * /api/posts:
  *   get:
  *     summary: Get all posts with pagination, filtering, and searching
+ *     description: Returns a paginated list of posts, sorted newest first. Supports filtering by tag and full-text search in title/content.
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
@@ -23,27 +68,30 @@ import { uploadImage } from "../services/image.service";
  *         name: page
  *         schema:
  *           type: integer
+ *           minimum: 1
  *           default: 1
  *         description: Page number
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
+ *           minimum: 1
+ *           maximum: 100
  *           default: 10
  *         description: Number of posts per page
  *       - in: query
  *         name: tag
  *         schema:
  *           type: string
- *         description: Filter posts by tag name (exact match, case-insensitive)
+ *         description: Filter by exact tag name (case-insensitive). Returns empty list if tag doesn't exist.
  *       - in: query
  *         name: q
  *         schema:
  *           type: string
- *         description: Text search in post title or content (case-insensitive)
+ *         description: Search text in title or content (case-insensitive regex)
  *     responses:
  *       200:
- *         description: List of posts with pagination info. Posts are sorted newest first.
+ *         description: Successful response with posts and pagination metadata
  *         content:
  *           application/json:
  *             schema:
@@ -75,6 +123,7 @@ export const getPosts = async (req: Request, res: Response) => {
 
     const tagName = (req.query.tag as string)?.trim();
     const searchQuery = (req.query.q as string)?.trim();
+
     const filter: any = {};
 
     if (tagName) {
@@ -96,6 +145,7 @@ export const getPosts = async (req: Request, res: Response) => {
     }
 
     const total = await Post.countDocuments(filter);
+
     const posts = await Post.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -130,9 +180,9 @@ export const getPosts = async (req: Request, res: Response) => {
  *     parameters:
  *       - in: path
  *         name: id
+ *         required: true
  *         schema:
  *           type: string
- *         required: true
  *         description: Post ID
  *     responses:
  *       200:
@@ -149,12 +199,16 @@ export const getPosts = async (req: Request, res: Response) => {
 export const getPost = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+
     const post = await Post.findById(id)
       .populate("tags")
       .populate("mainTag")
       .populate({ path: "author", select: "username" });
 
-    if (!post) return res.status(404).json({ message: "Post not found" });
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
     return res.json(post);
   } catch (err) {
     console.error(err);
@@ -167,6 +221,7 @@ export const getPost = async (req: Request, res: Response) => {
  * /api/posts:
  *   post:
  *     summary: Create a new post (admin only)
+ *     description: Creates a new blog post. Supports optional image upload via Cloudinary.
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
@@ -184,23 +239,31 @@ export const getPost = async (req: Request, res: Response) => {
  *             properties:
  *               title:
  *                 type: string
+ *                 description: Post title
  *               content:
  *                 type: string
+ *                 description: Post content (Markdown/HTML supported)
  *               mainTag:
  *                 type: string
+ *                 description: Name of an existing SYSTEM tag
  *               tags:
  *                 type: array
  *                 items:
  *                   type: string
+ *                 description: Array of tag names. New USER tags are created automatically if they don't exist.
  *               image:
  *                 type: string
  *                 format: binary
- *                 description: Optional post image
+ *                 description: Optional featured image (uploaded to Cloudinary)
  *     responses:
  *       201:
  *         description: Post created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Post'
  *       400:
- *         description: Missing fields or invalid mainTag
+ *         description: Missing required fields or invalid mainTag
  *       500:
  *         description: Server error
  */
@@ -222,12 +285,13 @@ export const createPost = async (req: Request, res: Response) => {
     const tags: any[] = [];
     for (const name of tagNames) {
       let tag = await Tag.findOne({ name: name.toLowerCase() });
-      if (!tag)
+      if (!tag) {
         tag = await Tag.create({
           name: name.toLowerCase(),
           type: "USER",
           createdBy: author,
         });
+      }
       tags.push(tag);
     }
 
@@ -235,12 +299,14 @@ export const createPost = async (req: Request, res: Response) => {
       name: mainTagName.toLowerCase(),
       type: "SYSTEM",
     });
-    if (!mainTag)
+    if (!mainTag) {
       return res
         .status(400)
         .json({ message: "mainTag must be a valid SYSTEM tag" });
-    if (!tags.some((t) => t._id.toString() === mainTag._id.toString()))
+    }
+    if (!tags.some((t) => t._id.toString() === mainTag._id.toString())) {
       tags.push(mainTag);
+    }
 
     let imageUrl: string | undefined;
     let imagePublicId: string | undefined;
@@ -278,16 +344,20 @@ export const createPost = async (req: Request, res: Response) => {
  * @swagger
  * /api/posts/{id}:
  *   put:
- *     summary: Update a post by ID (admin only)
+ *     summary: Update a post by ID (admin only - partial updates allowed)
+ *     description: |
+ *       Updates fields of an existing post. Text fields (title/content) can be updated independently.
+ *       Tags can only be updated together (full replacement) by providing both `tags` and `mainTag`.
+ *       Image can be replaced independently — new upload overwrites the previous one (old image remains on Cloudinary).
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
+ *         required: true
  *         schema:
  *           type: string
- *         required: true
  *         description: Post ID
  *     requestBody:
  *       required: false
@@ -298,23 +368,31 @@ export const createPost = async (req: Request, res: Response) => {
  *             properties:
  *               title:
  *                 type: string
+ *                 description: New title (optional)
  *               content:
  *                 type: string
+ *                 description: New content (optional)
  *               mainTag:
  *                 type: string
+ *                 description: Required only when updating tags
  *               tags:
  *                 type: array
  *                 items:
  *                   type: string
+ *                 description: Full new list of tag names (required only when updating tags)
  *               image:
  *                 type: string
  *                 format: binary
- *                 description: Optional post image to replace existing
+ *                 description: New image to replace current one (optional)
  *     responses:
  *       200:
  *         description: Post updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Post'
  *       400:
- *         description: Invalid input or mainTag not SYSTEM
+ *         description: Invalid input (e.g., partial tag update)
  *       404:
  *         description: Post not found
  *       500:
@@ -326,30 +404,33 @@ export const updatePost = async (req: Request, res: Response) => {
     const { title, content, tags: tagNames, mainTag: mainTagName } = req.body;
 
     const post = await Post.findById(id);
-    if (!post) return res.status(404).json({ message: "Post not found" });
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
 
     if (title !== undefined) post.title = title;
     if (content !== undefined) post.content = content;
 
-    if (tagNames || mainTagName) {
+    if (tagNames !== undefined || mainTagName !== undefined) {
       if (!Array.isArray(tagNames) || !mainTagName) {
-        return res
-          .status(400)
-          .json({
-            message: "To update tags, provide both 'tags' and 'mainTag'",
-          });
+        return res.status(400).json({
+          message:
+            "Both 'tags' (array) and 'mainTag' must be provided to update tags",
+        });
       }
+
       const author = req.user!.id;
       const tags: any[] = [];
 
       for (const name of tagNames) {
         let tag = await Tag.findOne({ name: name.toLowerCase() });
-        if (!tag)
+        if (!tag) {
           tag = await Tag.create({
             name: name.toLowerCase(),
             type: "USER",
             createdBy: author,
           });
+        }
         tags.push(tag);
       }
 
@@ -357,18 +438,19 @@ export const updatePost = async (req: Request, res: Response) => {
         name: mainTagName.toLowerCase(),
         type: "SYSTEM",
       });
-      if (!mainTag)
+      if (!mainTag) {
         return res
           .status(400)
           .json({ message: "mainTag must be a valid SYSTEM tag" });
-      if (!tags.some((t) => t._id.toString() === mainTag._id.toString()))
+      }
+      if (!tags.some((t) => t._id.toString() === mainTag._id.toString())) {
         tags.push(mainTag);
+      }
 
       post.tags = tags.map((t) => t._id);
       post.mainTag = mainTag._id;
     }
 
-    // Handle image upload
     if (req.file?.buffer) {
       const result = await uploadImage(req.file.buffer);
       post.imageUrl = result.url;
@@ -394,19 +476,28 @@ export const updatePost = async (req: Request, res: Response) => {
  * /api/posts/{id}:
  *   delete:
  *     summary: Delete a post by ID (admin only)
+ *     description: Permanently removes a post. Associated image remains on Cloudinary unless manually deleted.
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
+ *         required: true
  *         schema:
  *           type: string
- *         required: true
  *         description: Post ID
  *     responses:
  *       200:
  *         description: Post deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Post deleted successfully
  *       404:
  *         description: Post not found
  *       500:
@@ -417,7 +508,9 @@ export const deletePost = async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const post = await Post.findByIdAndDelete(id);
-    if (!post) return res.status(404).json({ message: "Post not found" });
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
 
     return res.json({ message: "Post deleted successfully" });
   } catch (err) {
