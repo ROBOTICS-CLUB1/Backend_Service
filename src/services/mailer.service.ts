@@ -1,26 +1,38 @@
-import { sendMail as sendMailUtil } from "../utils/mailer";
+import { sendMail } from "../utils/mailer";
 
 export class MailerService {
-  static async sendApprovalEmail(username: string, email: string) {
-    return sendMailUtil({
+  static sendApprovalEmail(username: string, email: string) {
+    return sendMail({
       to: email,
-      subject: "Membership Approved - Welcome to the Robotics Club!",
+      subject: "Welcome to the Robotics Club 🎉",
       html: `
-        <p>Hi <b>${username}</b>,</p>
-        <p>Congratulations! Your membership has been approved. Welcome to the Robotics Club! We’re excited to have you on board.</p>
-        <p>Explore the posts, participate in discussions, and let’s build amazing projects together!</p>
+        <p>Hi <strong>${username}</strong>,</p>
+
+        <p>Your membership request has been <strong>approved</strong>.</p>
+
+        <p>You are now an official member of the Robotics Club. You can log in, participate in discussions, and contribute to club activities.</p>
+
+        <p>We’re glad to have you on board.</p>
+
+        <p>— Robotics Club Team</p>
       `,
     });
   }
 
-  static async sendRejectionEmail(username: string, email: string) {
-    return sendMailUtil({
+  static sendRejectionEmail(username: string, email: string) {
+    return sendMail({
       to: email,
-      subject: "Membership Request Status - Robotics Club",
+      subject: "Membership Request Update",
       html: `
-        <p>Hi <b>${username}</b>,</p>
-        <p>Your membership request has unfortunately been rejected. If you believe this is an error or want to discuss eligibility, please contact the admin team.</p>
-        <p>Regards,<br/>Robotics Club</p>
+        <p>Hi <strong>${username}</strong>,</p>
+
+        <p>Your request to join the Robotics Club has been reviewed.</p>
+
+        <p>Unfortunately, it was not approved at this time.</p>
+
+        <p>If you believe this decision was made in error or would like more information, please reach out to the admin team.</p>
+
+        <p>— Robotics Club Team</p>
       `,
     });
   }
