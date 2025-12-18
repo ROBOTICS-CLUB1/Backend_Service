@@ -1,5 +1,3 @@
-// src/controllers/postController.ts
-
 import { Request, Response } from "express";
 import Post from "../models/Post";
 import Tag from "../models/Tag";
