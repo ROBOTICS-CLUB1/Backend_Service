@@ -1,11 +1,19 @@
 import { Schema, model, Document } from "mongoose";
 import bcrypt from "bcrypt";
 
+export type UserRole = "user" | "member" | "admin";
+export type MembershipStatus = "pending" | "approved" | "rejected" | "expired";
+
 interface IUser {
   username: string;
   email: string;
   password: string;
-  role: "user" | "admin";
+
+  role: UserRole;
+  membershipStatus: MembershipStatus;
+
+  membershipRequestedAt?: Date;
+  membershipReviewedAt?: Date;
 }
 
 interface IUserMethods {
@@ -16,10 +24,45 @@ type UserDocument = Document & IUser & IUserMethods;
 
 const userSchema = new Schema<UserDocument>(
   {
-    username: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
-    role: { type: String, enum: ["user", "admin"], default: "user" },
+    username: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
+
+    password: {
+      type: String,
+      required: true,
+    },
+
+    role: {
+      type: String,
+      enum: ["user", "member", "admin"],
+      default: "user",
+    },
+
+    membershipStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected", "expired"],
+      default: "pending",
+    },
+
+    membershipRequestedAt: {
+      type: Date,
+      default: Date.now,
+    },
+
+    membershipReviewedAt: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );
