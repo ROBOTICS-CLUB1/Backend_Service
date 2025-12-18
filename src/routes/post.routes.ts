@@ -12,12 +12,13 @@ import {
   createPostValidator,
   updatePostValidator,
 } from "../validators/post.validator";
+import { getPostsQueryValidator } from "../validators/query.validator";
 import { validate } from "../middleware/validate.middleware";
 
 const router = Router();
 
 //public read-only routes
-router.get("/", getPosts);
+router.get("/", getPostsQueryValidator, validate, getPosts);
 router.get("/:id", getPost);
 
 //protected routes for posts management by admin only
