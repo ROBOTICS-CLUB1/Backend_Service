@@ -6,14 +6,14 @@ import { signToken } from "../utils/jwt";
  * @swagger
  * tags:
  *   name: Auth
- *   description: User authentication and registration
+ *   description: Authentication and membership onboarding
  */
 
 /**
  * @swagger
  * /api/auth/register:
  *   post:
- *     summary: Register a new user
+ *     summary: Register a new user (membership request)
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -35,14 +35,10 @@ import { signToken } from "../utils/jwt";
  *                 example: john@example.com
  *               password:
  *                 type: string
- *                 example: strongPassword123
- *               role:
- *                 type: string
- *                 enum: [user, admin]
- *                 example: user
+ *                 example: StrongPassword123
  *     responses:
  *       201:
- *         description: User registered successfully
+ *         description: Registration successful, membership pending approval
  *         content:
  *           application/json:
  *             schema:
@@ -57,17 +53,28 @@ import { signToken } from "../utils/jwt";
  */
 export const register = async (req: Request, res: Response) => {
   try {
-    const { username, email, password, role } = req.body;
+    const { username, email, password } = req.body;
 
     const existing = await User.findOne({ email });
     if (existing) {
       return res.status(400).json({ message: "Email already in use" });
     }
 
-    const user = new User({ username, email, password, role });
+    const user = new User({
+      username,
+      email,
+      password,
+      role: "user",
+      membershipStatus: "pending",
+    });
+
     await user.save();
 
-    const token = signToken({ id: user._id.toString(), role: user.role });
+    const token = signToken({
+      id: user._id.toString(),
+      role: user.role,
+      membershipStatus: user.membershipStatus,
+    });
 
     return res.status(201).json({ token });
   } catch {
@@ -79,7 +86,7 @@ export const register = async (req: Request, res: Response) => {
  * @swagger
  * /api/auth/login:
  *   post:
- *     summary: Login an existing user
+ *     summary: Login a registered user
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -97,10 +104,10 @@ export const register = async (req: Request, res: Response) => {
  *                 example: john@example.com
  *               password:
  *                 type: string
- *                 example: strongPassword123
+ *                 example: StrongPassword123
  *     responses:
  *       200:
- *         description: Successful login, returns JWT token
+ *         description: Successful login
  *         content:
  *           application/json:
  *             schema:
@@ -127,7 +134,11 @@ export const login = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    const token = signToken({ id: user._id.toString(), role: user.role });
+    const token = signToken({
+      id: user._id.toString(),
+      role: user.role,
+      membershipStatus: user.membershipStatus,
+    });
 
     return res.json({ token });
   } catch {
