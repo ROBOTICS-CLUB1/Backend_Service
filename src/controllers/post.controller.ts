@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import Post from "../models/Post";
+import Tag from "../models/Tag";
 
 /**
  * @swagger
@@ -18,7 +19,7 @@ import Post from "../models/Post";
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: List of posts
+ *         description: List of posts with tags
  *         content:
  *           application/json:
  *             schema:
@@ -34,6 +35,26 @@ import Post from "../models/Post";
  *                     type: string
  *                   author:
  *                     type: string
+ *                   tags:
+ *                     type: array
+ *                     items:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         type:
+ *                           type: string
+ *                   mainTag:
+ *                     type: object
+ *                     properties:
+ *                       _id:
+ *                         type: string
+ *                       name:
+ *                         type: string
+ *                       type:
+ *                         type: string
  *                   createdAt:
  *                     type: string
  *                     format: date-time
@@ -45,9 +66,10 @@ import Post from "../models/Post";
  */
 export const getPosts = async (req: Request, res: Response) => {
   try {
-    const posts = await Post.find();
+    const posts = await Post.find().populate("tags").populate("mainTag");
     return res.json(posts);
-  } catch {
+  } catch (err) {
+    console.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -82,10 +104,11 @@ export const getPosts = async (req: Request, res: Response) => {
 export const getPost = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const post = await Post.findById(id);
+    const post = await Post.findById(id).populate("tags").populate("mainTag");
     if (!post) return res.status(404).json({ message: "Post not found" });
     return res.json(post);
-  } catch {
+  } catch (err) {
+    console.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -107,27 +130,83 @@ export const getPost = async (req: Request, res: Response) => {
  *             required:
  *               - title
  *               - content
+ *               - mainTag
+ *               - tags
  *             properties:
  *               title:
  *                 type: string
  *               content:
  *                 type: string
+ *               mainTag:
+ *                 type: string
+ *                 description: SYSTEM tag name
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of tag names (SYSTEM or USER)
  *     responses:
  *       201:
  *         description: Post created successfully
+ *       400:
+ *         description: Invalid input or mainTag not SYSTEM
  *       500:
  *         description: Server error
  */
 export const createPost = async (req: Request, res: Response) => {
   try {
-    const { title, content } = req.body;
+    const { title, content, tags: tagNames, mainTag: mainTagName } = req.body;
     const author = req.user!.id;
 
-    const post = new Post({ title, content, author });
+    if (
+      !title ||
+      !content ||
+      !mainTagName ||
+      !tagNames ||
+      !Array.isArray(tagNames)
+    ) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const tags: any[] = [];
+    for (const name of tagNames) {
+      let tag = await Tag.findOne({ name: name.toLowerCase() });
+      if (!tag) {
+        tag = await Tag.create({
+          name: name.toLowerCase(),
+          type: "USER",
+          createdBy: author,
+        });
+      }
+      tags.push(tag);
+    }
+
+    let mainTag = await Tag.findOne({
+      name: mainTagName.toLowerCase(),
+      type: "SYSTEM",
+    });
+    if (!mainTag) {
+      return res.status(400).json({ message: "mainTag must be a SYSTEM tag" });
+    }
+
+    if (!tags.some((t) => t.id === mainTag._id)) {
+      tags.push(mainTag);
+    }
+
+    const post = new Post({
+      title,
+      content,
+      author,
+      tags: tags.map((t) => t._id),
+      mainTag: mainTag._id,
+    });
+
     await post.save();
+    await (await post.populate("tags")).populate("mainTag");
 
     return res.status(201).json(post);
-  } catch {
+  } catch (err) {
+    console.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -158,9 +237,19 @@ export const createPost = async (req: Request, res: Response) => {
  *                 type: string
  *               content:
  *                 type: string
+ *               mainTag:
+ *                 type: string
+ *                 description: SYSTEM tag name
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of tag names (SYSTEM or USER)
  *     responses:
  *       200:
  *         description: Post updated successfully
+ *       400:
+ *         description: Invalid input or mainTag not SYSTEM
  *       404:
  *         description: Post not found
  *       500:
@@ -169,13 +258,53 @@ export const createPost = async (req: Request, res: Response) => {
 export const updatePost = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { title, content } = req.body;
+    const { title, content, tags: tagNames, mainTag: mainTagName } = req.body;
 
-    const post = await Post.findByIdAndUpdate(id, { title, content }, { new: true });
+    const post = await Post.findById(id);
     if (!post) return res.status(404).json({ message: "Post not found" });
 
+    if (title) post.title = title;
+    if (content) post.content = content;
+
+    if (tagNames && Array.isArray(tagNames) && mainTagName) {
+      const author = req.user!.id;
+      const tags: any[] = [];
+      for (const name of tagNames) {
+        let tag = await Tag.findOne({ name: name.toLowerCase() });
+        if (!tag) {
+          tag = await Tag.create({
+            name: name.toLowerCase(),
+            type: "USER",
+            createdBy: author,
+          });
+        }
+        tags.push(tag);
+      }
+
+      let mainTag = await Tag.findOne({
+        name: mainTagName.toLowerCase(),
+        type: "SYSTEM",
+      });
+      if (!mainTag) {
+        return res
+          .status(400)
+          .json({ message: "mainTag must be a SYSTEM tag" });
+      }
+
+      if (!tags.some((t) => t.id === mainTag._id)) {
+        tags.push(mainTag);
+      }
+
+      post.tags = tags.map((t) => t._id);
+      post.mainTag = mainTag._id;
+    }
+
+    await post.save();
+    await (await post.populate("tags")).populate("mainTag");
+
     return res.json(post);
-  } catch {
+  } catch (err) {
+    console.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -211,7 +340,8 @@ export const deletePost = async (req: Request, res: Response) => {
     if (!post) return res.status(404).json({ message: "Post not found" });
 
     return res.json({ message: "Post deleted successfully" });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 };
