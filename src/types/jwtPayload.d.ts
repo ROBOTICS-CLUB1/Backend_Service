@@ -1,6 +1,9 @@
+export type UserRole = "user" | "member" | "admin";
+
 export interface JwtPayloadCustom {
   id: string;
-  role: "user" | "admin";
+  role: UserRole;
+  membershipStatus: "pending" | "approved" | "rejected" | "expired";
 }
 
 declare global {
