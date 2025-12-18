@@ -7,7 +7,7 @@ import { uploadImage } from "../services/image.service";
  * @swagger
  * tags:
  *   name: Projects
- *   description: Manage projects (CRUD operations with optional image upload)
+ *   description: Member project showcase (members can manage their own projects; admins have full access)
  */
 
 /**
@@ -39,11 +39,9 @@ import { uploadImage } from "../services/image.service";
  *         imageUrl:
  *           type: string
  *           nullable: true
- *           description: URL of the featured image (if uploaded)
  *         imagePublicId:
  *           type: string
  *           nullable: true
- *           description: Cloudinary public_id for future deletion/replacement
  *         createdAt:
  *           type: string
  *           format: date-time
@@ -52,12 +50,14 @@ import { uploadImage } from "../services/image.service";
  *           format: date-time
  */
 
+const populateAuthor = { path: "author", select: "username _id" };
+
 /**
  * @swagger
  * /api/projects:
  *   get:
  *     summary: Get all projects with pagination, filtering, and searching
- *     description: Returns a paginated list of projects, sorted newest first. Supports filtering by tag and full-text search in title/content.
+ *     description: Returns a paginated list of projects sorted newest first. Available to any authenticated user.
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []
@@ -68,7 +68,6 @@ import { uploadImage } from "../services/image.service";
  *           type: integer
  *           minimum: 1
  *           default: 1
- *         description: Page number
  *       - in: query
  *         name: limit
  *         schema:
@@ -76,20 +75,17 @@ import { uploadImage } from "../services/image.service";
  *           minimum: 1
  *           maximum: 100
  *           default: 10
- *         description: Number of projects per page
  *       - in: query
  *         name: tag
  *         schema:
  *           type: string
- *         description: Filter by exact tag name (case-insensitive). Returns empty list if tag doesn't exist.
  *       - in: query
  *         name: q
  *         schema:
  *           type: string
- *         description: Search text in title or content (case-insensitive regex)
  *     responses:
  *       200:
- *         description: Successful response with projects and pagination metadata
+ *         description: Paginated list of projects
  *         content:
  *           application/json:
  *             schema:
@@ -102,14 +98,10 @@ import { uploadImage } from "../services/image.service";
  *                 pagination:
  *                   type: object
  *                   properties:
- *                     page:
- *                       type: integer
- *                     limit:
- *                       type: integer
- *                     total:
- *                       type: integer
- *                     totalPages:
- *                       type: integer
+ *                     page: { type: integer }
+ *                     limit: { type: integer }
+ *                     total: { type: integer }
+ *                     totalPages: { type: integer }
  *       500:
  *         description: Server error
  */
@@ -150,7 +142,7 @@ export const getProjects = async (req: Request, res: Response) => {
       .limit(limit)
       .populate("tags")
       .populate("mainTag")
-      .populate({ path: "author", select: "username" });
+      .populate(populateAuthor);
 
     return res.json({
       projects,
@@ -181,10 +173,9 @@ export const getProjects = async (req: Request, res: Response) => {
  *         required: true
  *         schema:
  *           type: string
- *         description: Project ID
  *     responses:
  *       200:
- *         description: Project found
+ *         description: Project details
  *         content:
  *           application/json:
  *             schema:
@@ -201,7 +192,7 @@ export const getProject = async (req: Request, res: Response) => {
     const project = await Project.findById(id)
       .populate("tags")
       .populate("mainTag")
-      .populate({ path: "author", select: "username" });
+      .populate(populateAuthor);
 
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
@@ -218,8 +209,8 @@ export const getProject = async (req: Request, res: Response) => {
  * @swagger
  * /api/projects:
  *   post:
- *     summary: Create a new project (member or admin only)
- *     description: Creates a new project. Supports optional image upload via Cloudinary.
+ *     summary: Create a new project (member or admin)
+ *     description: Members can showcase their own projects.
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []
@@ -237,31 +228,28 @@ export const getProject = async (req: Request, res: Response) => {
  *             properties:
  *               title:
  *                 type: string
- *                 description: Project title
  *               content:
  *                 type: string
- *                 description: Project content (Markdown/HTML supported)
  *               mainTag:
  *                 type: string
- *                 description: Name of an existing SYSTEM tag
  *               tags:
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: Array of tag names. New USER tags are created automatically if they don't exist.
  *               image:
  *                 type: string
  *                 format: binary
- *                 description: Optional featured image (uploaded to Cloudinary)
  *     responses:
  *       201:
- *         description: Project created successfully
+ *         description: Project created
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Project'
  *       400:
- *         description: Missing required fields or invalid mainTag
+ *         description: Validation error
+ *       403:
+ *         description: Insufficient permissions
  *       500:
  *         description: Server error
  */
@@ -298,7 +286,9 @@ export const createProject = async (req: Request, res: Response) => {
       type: "SYSTEM",
     });
     if (!mainTagDoc) {
-      return res.status(400).json({ message: "mainTag must be a valid SYSTEM tag" });
+      return res
+        .status(400)
+        .json({ message: "mainTag must be a valid SYSTEM tag" });
     }
     if (!tags.some((t) => t._id.toString() === mainTagDoc._id.toString())) {
       tags.push(mainTagDoc);
@@ -323,11 +313,7 @@ export const createProject = async (req: Request, res: Response) => {
     });
 
     await project.save();
-    await project.populate([
-      "tags",
-      "mainTag",
-      { path: "author", select: "username" },
-    ]);
+    await project.populate(["tags", "mainTag", populateAuthor]);
 
     return res.status(201).json(project);
   } catch (err) {
@@ -340,11 +326,7 @@ export const createProject = async (req: Request, res: Response) => {
  * @swagger
  * /api/projects/{id}:
  *   put:
- *     summary: Update a project by ID (owner member or admin only - partial updates allowed)
- *     description: |
- *       Updates fields of an existing project. Text fields (title/content) can be updated independently.
- *       Tags can only be updated together (full replacement) by providing both `tags` and `mainTag`.
- *       Image can be replaced independently — new upload overwrites the previous one (old image remains on Cloudinary).
+ *     summary: Update a project (owner member or admin)
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []
@@ -354,9 +336,7 @@ export const createProject = async (req: Request, res: Response) => {
  *         required: true
  *         schema:
  *           type: string
- *         description: Project ID
  *     requestBody:
- *       required: false
  *       content:
  *         multipart/form-data:
  *           schema:
@@ -364,33 +344,28 @@ export const createProject = async (req: Request, res: Response) => {
  *             properties:
  *               title:
  *                 type: string
- *                 description: New title (optional)
  *               content:
  *                 type: string
- *                 description: New content (optional)
  *               mainTag:
  *                 type: string
- *                 description: Required only when updating tags
  *               tags:
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: Full new list of tag names (required only when updating tags)
  *               image:
  *                 type: string
  *                 format: binary
- *                 description: New image to replace current one (optional)
  *     responses:
  *       200:
- *         description: Project updated successfully
+ *         description: Project updated
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Project'
  *       400:
- *         description: Invalid input (e.g., partial tag update)
+ *         description: Invalid tag update
  *       403:
- *         description: Not authorized to update this project
+ *         description: Not authorized
  *       404:
  *         description: Project not found
  *       500:
@@ -406,9 +381,13 @@ export const updateProject = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Project not found" });
     }
 
-    // Ownership check (done in middleware, but here for completeness)
-    if (req.user!.role !== "admin" && project.author.toString() !== req.user!.id) {
-      return res.status(403).json({ message: "Not authorized to update this project" });
+    if (
+      req.user!.role !== "admin" &&
+      project.author.toString() !== req.user!.id
+    ) {
+      return res
+        .status(403)
+        .json({ message: "Not authorized to update this project" });
     }
 
     if (title !== undefined) project.title = title;
@@ -417,7 +396,8 @@ export const updateProject = async (req: Request, res: Response) => {
     if (tagNames !== undefined || mainTagName !== undefined) {
       if (!Array.isArray(tagNames) || !mainTagName) {
         return res.status(400).json({
-          message: "Both 'tags' (array) and 'mainTag' must be provided to update tags",
+          message:
+            "Both 'tags' (array) and 'mainTag' must be provided to update tags",
         });
       }
 
@@ -441,7 +421,9 @@ export const updateProject = async (req: Request, res: Response) => {
         type: "SYSTEM",
       });
       if (!mainTagDoc) {
-        return res.status(400).json({ message: "mainTag must be a valid SYSTEM tag" });
+        return res
+          .status(400)
+          .json({ message: "mainTag must be a valid SYSTEM tag" });
       }
       if (!tags.some((t) => t._id.toString() === mainTagDoc._id.toString())) {
         tags.push(mainTagDoc);
@@ -458,11 +440,7 @@ export const updateProject = async (req: Request, res: Response) => {
     }
 
     await project.save();
-    await project.populate([
-      "tags",
-      "mainTag",
-      { path: "author", select: "username" },
-    ]);
+    await project.populate(["tags", "mainTag", populateAuthor]);
 
     return res.json(project);
   } catch (err) {
@@ -475,8 +453,7 @@ export const updateProject = async (req: Request, res: Response) => {
  * @swagger
  * /api/projects/{id}:
  *   delete:
- *     summary: Delete a project by ID (owner member or admin only)
- *     description: Permanently removes a project. Associated image remains on Cloudinary unless manually deleted.
+ *     summary: Delete a project (owner member or admin)
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []
@@ -486,20 +463,11 @@ export const updateProject = async (req: Request, res: Response) => {
  *         required: true
  *         schema:
  *           type: string
- *         description: Project ID
  *     responses:
  *       200:
- *         description: Project deleted successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: Project deleted successfully
+ *         description: Project deleted
  *       403:
- *         description: Not authorized to delete this project
+ *         description: Not authorized
  *       404:
  *         description: Project not found
  *       500:
@@ -514,9 +482,13 @@ export const deleteProject = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Project not found" });
     }
 
-    // Ownership check (done in middleware, but here for completeness)
-    if (req.user!.role !== "admin" && project.author.toString() !== req.user!.id) {
-      return res.status(403).json({ message: "Not authorized to delete this project" });
+    if (
+      req.user!.role !== "admin" &&
+      project.author.toString() !== req.user!.id
+    ) {
+      return res
+        .status(403)
+        .json({ message: "Not authorized to delete this project" });
     }
 
     await Project.findByIdAndDelete(id);
