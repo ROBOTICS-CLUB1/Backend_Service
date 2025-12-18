@@ -16,7 +16,7 @@ import { getPostsQueryValidator } from "../validators/query.validator";
 import { validate } from "../middleware/validate.middleware";
 import commentRoutes from "../routes/comment.routes";
 
-const router = Router();
+const router = Router({ mergeParams: true });
 
 //public read-only routes
 router.get("/", getPostsQueryValidator, validate, getPosts);
