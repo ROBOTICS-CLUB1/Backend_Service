@@ -3,7 +3,29 @@ import User from "../models/User";
 import { MailerService } from "../services/mailer.service";
 
 /**
- * Get all users with pending membership requests
+ * @swagger
+ * tags:
+ *   name: Admin
+ *   description: Admin management and membership approval
+ */
+
+/**
+ * @swagger
+ * /api/admin/users/pending:
+ *   get:
+ *     summary: Get all users with pending membership requests
+ *     tags: [Admin]
+ *     responses:
+ *       200:
+ *         description: List of pending users
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/User'
+ *       500:
+ *         description: Server error
  */
 export const getPendingUsers = async (req: Request, res: Response) => {
   try {
@@ -15,8 +37,33 @@ export const getPendingUsers = async (req: Request, res: Response) => {
 };
 
 /**
- * Approve a pending user's membership
+ * @swagger
+ * /api/admin/users/{userId}/approve:
+ *   patch:
+ *     summary: Approve a pending user's membership
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID to approve
+ *     responses:
+ *       200:
+ *         description: User approved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       400:
+ *         description: User is not pending
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
  */
+
 export const approveUser = async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
@@ -41,7 +88,31 @@ export const approveUser = async (req: Request, res: Response) => {
 };
 
 /**
- * Reject a pending user's membership
+ * @swagger
+ * /api/admin/users/{userId}/reject:
+ *   patch:
+ *     summary: Reject a pending user's membership
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID to reject
+ *     responses:
+ *       200:
+ *         description: User rejected
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       400:
+ *         description: User is not pending
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
  */
 export const rejectUser = async (req: Request, res: Response) => {
   try {
