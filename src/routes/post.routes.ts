@@ -7,7 +7,7 @@ import {
   deletePost,
 } from "../controllers/post.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
-import { adminMiddleware } from "../middleware/role.middleware";
+import { requireRoles } from "../middleware/role.middleware";
 import {
   createPostValidator,
   updatePostValidator,
@@ -21,8 +21,20 @@ router.use(authMiddleware);
 router.get("/", getPosts);
 router.get("/:id", getPost);
 
-router.post("/", adminMiddleware, createPostValidator, validate, createPost);
-router.put("/:id", adminMiddleware, updatePostValidator, validate, updatePost);
-router.delete("/:id", adminMiddleware, deletePost);
+router.post(
+  "/",
+  requireRoles("member", "admin"),
+  createPostValidator,
+  validate,
+  createPost
+);
+router.put(
+  "/:id",
+  requireRoles("member", "admin"),
+  updatePostValidator,
+  validate,
+  updatePost
+);
+router.delete("/:id", requireRoles("member", "admin"), deletePost);
 
 export default router;
