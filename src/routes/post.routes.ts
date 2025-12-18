@@ -14,6 +14,7 @@ import {
 } from "../validators/post.validator";
 import { getPostsQueryValidator } from "../validators/query.validator";
 import { validate } from "../middleware/validate.middleware";
+import commentRoutes from "../routes/comment.routes";
 
 const router = Router();
 
@@ -45,4 +46,5 @@ router.put(
 //delete post
 router.delete("/:id", requireRoles("admin"), deletePost);
 
+router.use("/:postId/comments", commentRoutes);
 export default router;
