@@ -1,12 +1,8 @@
+import { JwtPayloadCustom } from "../types/jwtPayload";
 import jwt from "jsonwebtoken";
 
-interface TokenPayload {
-  id: string;
-  role: "user" | "admin";
-}
-
-export const signToken = (payload: TokenPayload): string => {
-  return jwt.sign(payload, process.env.JWT_SECRET as string, {
+export const signToken = (payload: JwtPayloadCustom) => {
+  return jwt.sign(payload, process.env.JWT_SECRET!, {
     expiresIn: "1h",
   });
 };
