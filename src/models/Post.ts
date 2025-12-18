@@ -7,6 +7,9 @@ interface IPost {
 
   tags: Types.ObjectId[];
   mainTag: Types.ObjectId;
+
+  imageUrl?: string;
+  imagePublicId?: string;
 }
 
 type PostDocument = Document & IPost;
@@ -30,6 +33,9 @@ const postSchema = new Schema<PostDocument>(
       ref: "Tag",
       required: true,
     },
+
+    imageUrl: { type: String },
+    imagePublicId: { type: String },
   },
   { timestamps: true }
 );
