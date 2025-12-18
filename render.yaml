@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: robotics-api
+    env: node
+    region: frankfurt   
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      NODE_VERSION: "20"
+      NODE_ENV: production
