@@ -31,10 +31,20 @@ The Robotics Club Backend exposes a RESTful API built with TypeScript, Express, 
 
 - **Posts Management**
 
-  - **Get all posts:** `GET /api/posts` (any logged-in user)
+  - **Get all posts:** `GET /api/posts` (any logged-in user)  
+    Supports pagination (`?page=1&limit=10`), tag filtering (`?tag=robotics`), and text search (`?q=keyword`). Posts are sorted newest first.
+
   - **Get single post:** `GET /api/posts/:id` (any logged-in user)
-  - **Create post:** `POST /api/posts` (admin only)
-  - **Update post:** `PUT /api/posts/:id` (admin only)
+
+  - **Create post:** `POST /api/posts` (admin only)  
+    Multipart/form-data request. Required fields: `title`, `content`, `mainTag` (SYSTEM tag name), `tags` (array of tag names). Optional: `image` (featured image uploaded to Cloudinary).
+
+  - **Update post:** `PUT /api/posts/:id` (admin only)  
+    Multipart/form-data request. Partial updates allowed:  
+    - `title` and `content` can be updated independently  
+    - `tags` and `mainTag` must both be provided for tag changes (full replacement)  
+    - `image` can be uploaded to replace the current featured image
+
   - **Delete post:** `DELETE /api/posts/:id` (admin only)
 
 - **Security**
