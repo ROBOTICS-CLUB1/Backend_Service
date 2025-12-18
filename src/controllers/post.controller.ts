@@ -7,7 +7,7 @@ import { uploadImage } from "../services/image.service";
  * @swagger
  * tags:
  *   name: Posts
- *   description: Manage posts (CRUD operations with optional image upload)
+ *   description: Blog posts management (admin-only creation/updates/deletes)
  */
 
 /**
@@ -19,6 +19,7 @@ import { uploadImage } from "../services/image.service";
  *       properties:
  *         _id:
  *           type: string
+ *           example: "64f1a2b3c4d5e6f789012345"
  *         title:
  *           type: string
  *         content:
@@ -43,7 +44,7 @@ import { uploadImage } from "../services/image.service";
  *         imagePublicId:
  *           type: string
  *           nullable: true
- *           description: Cloudinary public_id for future deletion/replacement
+ *           description: Cloudinary public_id for future management
  *         createdAt:
  *           type: string
  *           format: date-time
@@ -52,12 +53,14 @@ import { uploadImage } from "../services/image.service";
  *           format: date-time
  */
 
+const populateAuthor = { path: "author", select: "username _id" };
+
 /**
  * @swagger
  * /api/posts:
  *   get:
  *     summary: Get all posts with pagination, filtering, and searching
- *     description: Returns a paginated list of posts, sorted newest first. Supports filtering by tag and full-text search in title/content.
+ *     description: Returns a paginated list of posts sorted newest first. Available to any authenticated user.
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
@@ -81,15 +84,15 @@ import { uploadImage } from "../services/image.service";
  *         name: tag
  *         schema:
  *           type: string
- *         description: Filter by exact tag name (case-insensitive). Returns empty list if tag doesn't exist.
+ *         description: Filter by exact tag name (case-insensitive)
  *       - in: query
  *         name: q
  *         schema:
  *           type: string
- *         description: Search text in title or content (case-insensitive regex)
+ *         description: Search in title or content (case-insensitive)
  *     responses:
  *       200:
- *         description: Successful response with posts and pagination metadata
+ *         description: Paginated list of posts
  *         content:
  *           application/json:
  *             schema:
@@ -150,7 +153,7 @@ export const getPosts = async (req: Request, res: Response) => {
       .limit(limit)
       .populate("tags")
       .populate("mainTag")
-      .populate({ path: "author", select: "username" });
+      .populate(populateAuthor);
 
     return res.json({
       posts,
@@ -172,6 +175,7 @@ export const getPosts = async (req: Request, res: Response) => {
  * /api/posts/{id}:
  *   get:
  *     summary: Get a single post by ID
+ *     description: Retrieves full details of a post. Available to any authenticated user.
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
@@ -184,7 +188,7 @@ export const getPosts = async (req: Request, res: Response) => {
  *         description: Post ID
  *     responses:
  *       200:
- *         description: Post found
+ *         description: Post details
  *         content:
  *           application/json:
  *             schema:
@@ -201,7 +205,7 @@ export const getPost = async (req: Request, res: Response) => {
     const post = await Post.findById(id)
       .populate("tags")
       .populate("mainTag")
-      .populate({ path: "author", select: "username" });
+      .populate(populateAuthor);
 
     if (!post) {
       return res.status(404).json({ message: "Post not found" });
@@ -219,7 +223,7 @@ export const getPost = async (req: Request, res: Response) => {
  * /api/posts:
  *   post:
  *     summary: Create a new post (admin only)
- *     description: Creates a new blog post. Supports optional image upload via Cloudinary.
+ *     description: Creates a new blog post. Supports optional featured image upload to Cloudinary.
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
@@ -240,7 +244,7 @@ export const getPost = async (req: Request, res: Response) => {
  *                 description: Post title
  *               content:
  *                 type: string
- *                 description: Post content (Markdown/HTML supported)
+ *                 description: Post content (supports Markdown/HTML)
  *               mainTag:
  *                 type: string
  *                 description: Name of an existing SYSTEM tag
@@ -248,11 +252,11 @@ export const getPost = async (req: Request, res: Response) => {
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: Array of tag names. New USER tags are created automatically if they don't exist.
+ *                 description: Array of tag names (new USER tags created automatically)
  *               image:
  *                 type: string
  *                 format: binary
- *                 description: Optional featured image (uploaded to Cloudinary)
+ *                 description: Optional featured image
  *     responses:
  *       201:
  *         description: Post created successfully
@@ -262,6 +266,8 @@ export const getPost = async (req: Request, res: Response) => {
  *               $ref: '#/components/schemas/Post'
  *       400:
  *         description: Missing required fields or invalid mainTag
+ *       403:
+ *         description: Admin access required
  *       500:
  *         description: Server error
  */
@@ -298,9 +304,7 @@ export const createPost = async (req: Request, res: Response) => {
       type: "SYSTEM",
     });
     if (!mainTag) {
-      return res
-        .status(400)
-        .json({ message: "mainTag must be a valid SYSTEM tag" });
+      return res.status(400).json({ message: "mainTag must be a valid SYSTEM tag" });
     }
     if (!tags.some((t) => t._id.toString() === mainTag._id.toString())) {
       tags.push(mainTag);
@@ -325,11 +329,7 @@ export const createPost = async (req: Request, res: Response) => {
     });
 
     await post.save();
-    await post.populate([
-      "tags",
-      "mainTag",
-      { path: "author", select: "username" },
-    ]);
+    await post.populate(["tags", "mainTag", populateAuthor]);
 
     return res.status(201).json(post);
   } catch (err) {
@@ -342,11 +342,11 @@ export const createPost = async (req: Request, res: Response) => {
  * @swagger
  * /api/posts/{id}:
  *   put:
- *     summary: Update a post by ID (admin only - partial updates allowed)
+ *     summary: Update a post (admin only - partial updates allowed)
  *     description: |
- *       Updates fields of an existing post. Text fields (title/content) can be updated independently.
- *       Tags can only be updated together (full replacement) by providing both `tags` and `mainTag`.
- *       Image can be replaced independently — new upload overwrites the previous one (old image remains on Cloudinary).
+ *       Title and content can be updated independently.
+ *       Tags require both `tags` array and `mainTag` for full replacement.
+ *       Image can be replaced independently.
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
@@ -358,7 +358,6 @@ export const createPost = async (req: Request, res: Response) => {
  *           type: string
  *         description: Post ID
  *     requestBody:
- *       required: false
  *       content:
  *         multipart/form-data:
  *           schema:
@@ -366,10 +365,8 @@ export const createPost = async (req: Request, res: Response) => {
  *             properties:
  *               title:
  *                 type: string
- *                 description: New title (optional)
  *               content:
  *                 type: string
- *                 description: New content (optional)
  *               mainTag:
  *                 type: string
  *                 description: Required only when updating tags
@@ -377,11 +374,11 @@ export const createPost = async (req: Request, res: Response) => {
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: Full new list of tag names (required only when updating tags)
+ *                 description: Full new list of tags (required with mainTag)
  *               image:
  *                 type: string
  *                 format: binary
- *                 description: New image to replace current one (optional)
+ *                 description: New image to replace current one
  *     responses:
  *       200:
  *         description: Post updated successfully
@@ -390,7 +387,9 @@ export const createPost = async (req: Request, res: Response) => {
  *             schema:
  *               $ref: '#/components/schemas/Post'
  *       400:
- *         description: Invalid input (e.g., partial tag update)
+ *         description: Invalid tag update
+ *       403:
+ *         description: Admin access required
  *       404:
  *         description: Post not found
  *       500:
@@ -412,8 +411,7 @@ export const updatePost = async (req: Request, res: Response) => {
     if (tagNames !== undefined || mainTagName !== undefined) {
       if (!Array.isArray(tagNames) || !mainTagName) {
         return res.status(400).json({
-          message:
-            "Both 'tags' (array) and 'mainTag' must be provided to update tags",
+          message: "Both 'tags' (array) and 'mainTag' must be provided to update tags",
         });
       }
 
@@ -437,9 +435,7 @@ export const updatePost = async (req: Request, res: Response) => {
         type: "SYSTEM",
       });
       if (!mainTag) {
-        return res
-          .status(400)
-          .json({ message: "mainTag must be a valid SYSTEM tag" });
+        return res.status(400).json({ message: "mainTag must be a valid SYSTEM tag" });
       }
       if (!tags.some((t) => t._id.toString() === mainTag._id.toString())) {
         tags.push(mainTag);
@@ -456,11 +452,7 @@ export const updatePost = async (req: Request, res: Response) => {
     }
 
     await post.save();
-    await post.populate([
-      "tags",
-      "mainTag",
-      { path: "author", select: "username" },
-    ]);
+    await post.populate(["tags", "mainTag", populateAuthor]);
 
     return res.json(post);
   } catch (err) {
@@ -473,8 +465,8 @@ export const updatePost = async (req: Request, res: Response) => {
  * @swagger
  * /api/posts/{id}:
  *   delete:
- *     summary: Delete a post by ID (admin only)
- *     description: Permanently removes a post. Associated image remains on Cloudinary unless manually deleted.
+ *     summary: Delete a post (admin only)
+ *     description: Permanently removes a post. Image remains on Cloudinary.
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
@@ -496,6 +488,8 @@ export const updatePost = async (req: Request, res: Response) => {
  *                 message:
  *                   type: string
  *                   example: Post deleted successfully
+ *       403:
+ *         description: Admin access required
  *       404:
  *         description: Post not found
  *       500:
