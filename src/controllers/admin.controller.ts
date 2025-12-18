@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import User from "../models/User";
-import { signToken } from "../utils/jwt";
+import { MailerService } from "../services/mailer.service";
 
 /**
  * Get all users with pending membership requests
@@ -31,7 +31,8 @@ export const approveUser = async (req: Request, res: Response) => {
     user.membershipReviewedAt = new Date();
     await user.save();
 
-    // Optional: send approval email here
+    // Send approval email
+    await MailerService.sendApprovalEmail(user.username, user.email);
 
     return res.json({ message: "User approved", user });
   } catch {
@@ -55,7 +56,8 @@ export const rejectUser = async (req: Request, res: Response) => {
     user.membershipReviewedAt = new Date();
     await user.save();
 
-    // Optional: send rejection email here
+    // Send rejection email
+    await MailerService.sendRejectionEmail(user.username, user.email);
 
     return res.json({ message: "User rejected", user });
   } catch {
