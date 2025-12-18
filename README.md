@@ -4,11 +4,32 @@ The Robotics Club Backend exposes a RESTful API built with TypeScript, Express, 
 
 ### Key Features
 
-- **User Authentication**
+### Key Features
 
-  - Registration (`POST /api/auth/register`)
-  - Login with JWT (`POST /api/auth/login`)
-  - Role-based access: `user` or `admin`
+- **User Authentication & Membership Onboarding**
+
+  - **Registration (`POST /api/auth/register`)**
+
+    - Users register and are set to **pending membership**.
+    - Default role: `user`.
+    - Membership is valid for 1 day pending admin approval.
+    - Returns a JWT token including `role` and `membershipStatus`.
+
+  - **Login with JWT (`POST /api/auth/login`)**
+
+    - Login a registered user.
+    - Returns a JWT token including `role` and `membershipStatus`.
+
+  - **Admin Membership Management**
+
+    - **Get pending users:** `GET /api/admin/users/pending`
+    - **Approve user:** `PATCH /api/admin/users/{userId}/approve`
+    - **Reject user:** `PATCH /api/admin/users/{userId}/reject`
+
+  - **Roles and Permissions**
+    - `user` → default registered user, limited access
+    - `member` → approved club member, full access to member features
+    - `admin` → club leaders with full access and approval permissions
 
 - **Posts Management**
 

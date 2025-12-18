@@ -3,67 +3,69 @@
 This document provides a detailed reference of all backend API endpoints for the Robotics Club backend.
 
 ---
+## Authentication & Membership Onboarding
 
-## **Authentication Endpoints**
-
-### **Register a new user**
-
-- **URL:** `/api/auth/register`
-- **Method:** POST
-- **Auth required:** No
-- **Body:**
-```json
-{
-  "username": "string",
-  "email": "string",
-  "password": "string",
-  "role": "user | admin"
-}
-````
-
-* **Responses:**
-
-  * `201 Created`
-
-    ```json
-    { "message": "User registered successfully" }
-    ```
-  * `400 Bad Request`
-
-    ```json
-    { "message": "Email already in use" }
-    ```
-
----
-
-### **Login user**
-
-* **URL:** `/api/auth/login`
-* **Method:** POST
-* **Auth required:** No
-* **Body:**
-
-```json
-{
-  "email": "string",
-  "password": "string"
-}
+### Register
+- **Endpoint:** `POST /api/auth/register`
+- **Description:** Register a new user (membership request)
+- **Request body:**
+  ```json
+  {
+    "username": "johndoe",
+    "email": "john@example.com",
+    "password": "StrongPassword123"
+  }
 ```
 
-* **Responses:**
+**Response:**
 
-  * `200 OK`
+  * `201 Created` with JWT token
+  * Role: `user`, membershipStatus: `pending`
+  * Membership pending admin approval (valid for 1 day)
 
-    ```json
-    { "token": "JWT_TOKEN" }
-    ```
-  * `400 Bad Request`
+### Login
 
-    ```json
-    { "message": "Invalid credentials" }
-    ```
+* **Endpoint:** `POST /api/auth/login`
+* **Description:** Login a registered user
+* **Request body:**
 
----
+  ```json
+  {
+    "email": "john@example.com",
+    "password": "StrongPassword123"
+  }
+  ```
+* **Response:** JWT token with `role` and `membershipStatus`
+
+### Admin Membership Management
+
+#### Get Pending Users
+
+* **Endpoint:** `GET /api/admin/users/pending`
+* **Description:** Retrieve all users pending membership approval
+* **Response:** Array of User objects with `username`, `email`, `role`, `membershipStatus`, `membershipRequestedAt`
+
+#### Approve User
+
+* **Endpoint:** `PATCH /api/admin/users/{userId}/approve`
+* **Description:** Approve a pending user's membership
+* **Response:** Updated User object
+
+  * Role updated to `member`
+  * MembershipStatus updated to `approved`
+
+#### Reject User
+
+* **Endpoint:** `PATCH /api/admin/users/{userId}/reject`
+* **Description:** Reject a pending user's membership
+* **Response:** Updated User object
+
+  * MembershipStatus updated to `rejected`
+
+```
+
+
+```
 
 ## **Posts Endpoints**
 
@@ -179,5 +181,6 @@ This document provides a detailed reference of all backend API endpoints for the
   * `500` → Server Error
 
 ```
-
+ Made by Robotics Club Dev Team
+```
 ---
