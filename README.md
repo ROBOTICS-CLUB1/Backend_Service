@@ -4,8 +4,6 @@ The Robotics Club Backend exposes a RESTful API built with TypeScript, Express, 
 
 ### Key Features
 
-### Key Features
-
 - **User Authentication & Membership Onboarding**
 
   - **Registration (`POST /api/auth/register`)**
