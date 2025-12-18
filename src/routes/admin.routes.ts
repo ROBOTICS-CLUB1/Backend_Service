@@ -5,20 +5,21 @@ import {
   getPendingUsers,
   approveUser,
   rejectUser,
+  getDashboard,
 } from "../controllers/admin.controller";
 
 const router = Router();
-//All routes are admin protected so only available to system admins
+
+// All routes are admin-protected: require authentication + admin role
 router.use(authMiddleware);
 router.use(requireRoles("admin"));
 
-// Get all pending users
+// Membership management
 router.get("/users/pending", getPendingUsers);
-
-// Approve user
 router.patch("/users/:userId/approve", approveUser);
-
-// Reject user
 router.patch("/users/:userId/reject", rejectUser);
+
+// Dashboard metrics
+router.get("/dashboard", getDashboard);
 
 export default router;
