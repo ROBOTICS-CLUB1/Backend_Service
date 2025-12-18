@@ -16,25 +16,32 @@ import { validate } from "../middleware/validate.middleware";
 
 const router = Router();
 
-router.use(authMiddleware);
-
+//public read-only routes
 router.get("/", getPosts);
 router.get("/:id", getPost);
 
+//protected routes for posts management by admin only
+router.use(authMiddleware);
+
+//create post
 router.post(
   "/",
-  requireRoles("member", "admin"),
+  requireRoles("admin"),
   createPostValidator,
   validate,
   createPost
 );
+
+//update post
 router.put(
   "/:id",
-  requireRoles("member", "admin"),
+  requireRoles("admin"),
   updatePostValidator,
   validate,
   updatePost
 );
-router.delete("/:id", requireRoles("member", "admin"), deletePost);
+
+//delete post
+router.delete("/:id", requireRoles("admin"), deletePost);
 
 export default router;
