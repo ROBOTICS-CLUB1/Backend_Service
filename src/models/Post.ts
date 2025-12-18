@@ -1,9 +1,10 @@
 import { Schema, model, Document, Types } from "mongoose";
+import Tag from "./Tag";
 
 interface IPost {
   title: string;
   content: string;
-  author: string;
+  author: Types.ObjectId;
 
   tags: Types.ObjectId[];
   mainTag: Types.ObjectId;
@@ -12,13 +13,13 @@ interface IPost {
   imagePublicId?: string;
 }
 
-type PostDocument = Document & IPost;
+interface PostDocument extends Document, IPost {}
 
 const postSchema = new Schema<PostDocument>(
   {
     title: { type: String, required: true },
     content: { type: String, required: true },
-    author: { type: String, required: true },
+    author: { type: Schema.Types.ObjectId, ref: "User", required: true }, // Fixed to ObjectId for consistency
 
     tags: [
       {
@@ -40,16 +41,20 @@ const postSchema = new Schema<PostDocument>(
   { timestamps: true }
 );
 
-postSchema.pre("validate", async function (next) {
-  if (!this.tags.some((tagId) => tagId.equals(this.mainTag))) {
-    return;
+postSchema.pre<PostDocument>("validate", async function () {
+  const mainTagInTags = this.tags.some((tagId) => tagId.equals(this.mainTag));
+  if (!mainTagInTags) {
+    throw new Error("mainTag must be included in the tags array");
   }
 
-  const Tag = model("Tag");
-  const mainTag = await Tag.findById(this.mainTag);
+  const mainTagDoc = await Tag.findById(this.mainTag);
 
-  if (!mainTag || mainTag.type !== "SYSTEM") {
-    return;
+  if (!mainTagDoc) {
+    throw new Error("mainTag references a non-existent tag");
+  }
+
+  if (mainTagDoc.type !== "SYSTEM") {
+    throw new Error("mainTag must be a SYSTEM tag");
   }
 });
 
