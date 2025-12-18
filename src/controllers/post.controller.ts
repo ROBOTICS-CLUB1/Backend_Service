@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import Post from "../models/Post";
 import Tag from "../models/Tag";
+import { uploadImage } from "../services/image.service";
 
 /**
  * @swagger
@@ -69,15 +70,13 @@ import Tag from "../models/Tag";
 export const getPosts = async (req: Request, res: Response) => {
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
-    const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 10)); // sensible limits
+    const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 10));
     const skip = (page - 1) * limit;
 
     const tagName = (req.query.tag as string)?.trim();
     const searchQuery = (req.query.q as string)?.trim();
-
     const filter: any = {};
 
-    // Filter by tag
     if (tagName) {
       const tag = await Tag.findOne({ name: tagName.toLowerCase() });
       if (!tag) {
@@ -89,7 +88,6 @@ export const getPosts = async (req: Request, res: Response) => {
       filter.tags = tag._id;
     }
 
-    // Text search
     if (searchQuery) {
       filter.$or = [
         { title: { $regex: searchQuery, $options: "i" } },
@@ -98,14 +96,13 @@ export const getPosts = async (req: Request, res: Response) => {
     }
 
     const total = await Post.countDocuments(filter);
-
     const posts = await Post.find(filter)
-      .sort({ createdAt: -1 }) // newest first
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .populate("tags")
       .populate("mainTag")
-      .populate({ path: "author", select: "username" }); // show author username
+      .populate({ path: "author", select: "username" });
 
     return res.json({
       posts,
@@ -152,16 +149,12 @@ export const getPosts = async (req: Request, res: Response) => {
 export const getPost = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-
     const post = await Post.findById(id)
       .populate("tags")
       .populate("mainTag")
       .populate({ path: "author", select: "username" });
 
-    if (!post) {
-      return res.status(404).json({ message: "Post not found" });
-    }
-
+    if (!post) return res.status(404).json({ message: "Post not found" });
     return res.json(post);
   } catch (err) {
     console.error(err);
@@ -180,7 +173,7 @@ export const getPost = async (req: Request, res: Response) => {
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             required:
@@ -195,12 +188,14 @@ export const getPost = async (req: Request, res: Response) => {
  *                 type: string
  *               mainTag:
  *                 type: string
- *                 description: Name of a SYSTEM tag
  *               tags:
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: Array of tag names (SYSTEM or USER - new USER tags will be created)
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Optional post image
  *     responses:
  *       201:
  *         description: Post created successfully
@@ -224,34 +219,35 @@ export const createPost = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    // Resolve or create tags
     const tags: any[] = [];
     for (const name of tagNames) {
       let tag = await Tag.findOne({ name: name.toLowerCase() });
-      if (!tag) {
+      if (!tag)
         tag = await Tag.create({
           name: name.toLowerCase(),
           type: "USER",
           createdBy: author,
         });
-      }
       tags.push(tag);
     }
 
-    // Validate mainTag is SYSTEM
     const mainTag = await Tag.findOne({
       name: mainTagName.toLowerCase(),
       type: "SYSTEM",
     });
-    if (!mainTag) {
+    if (!mainTag)
       return res
         .status(400)
         .json({ message: "mainTag must be a valid SYSTEM tag" });
-    }
-
-    // Ensure mainTag is included in tags
-    if (!tags.some((t) => t._id.toString() === mainTag._id.toString())) {
+    if (!tags.some((t) => t._id.toString() === mainTag._id.toString()))
       tags.push(mainTag);
+
+    let imageUrl: string | undefined;
+    let imagePublicId: string | undefined;
+    if (req.file?.buffer) {
+      const result = await uploadImage(req.file.buffer);
+      imageUrl = result.url;
+      imagePublicId = result.public_id;
     }
 
     const post = new Post({
@@ -260,6 +256,8 @@ export const createPost = async (req: Request, res: Response) => {
       author,
       tags: tags.map((t) => t._id),
       mainTag: mainTag._id,
+      imageUrl,
+      imagePublicId,
     });
 
     await post.save();
@@ -280,7 +278,7 @@ export const createPost = async (req: Request, res: Response) => {
  * @swagger
  * /api/posts/{id}:
  *   put:
- *     summary: Update a post by ID (admin only - partial updates allowed)
+ *     summary: Update a post by ID (admin only)
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
@@ -292,9 +290,9 @@ export const createPost = async (req: Request, res: Response) => {
  *         required: true
  *         description: Post ID
  *     requestBody:
- *       required: true
+ *       required: false
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             properties:
@@ -304,12 +302,14 @@ export const createPost = async (req: Request, res: Response) => {
  *                 type: string
  *               mainTag:
  *                 type: string
- *                 description: Name of a SYSTEM tag (only if updating tags)
  *               tags:
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: New full array of tag names (only if updating tags)
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Optional post image to replace existing
  *     responses:
  *       200:
  *         description: Post updated successfully
@@ -326,35 +326,30 @@ export const updatePost = async (req: Request, res: Response) => {
     const { title, content, tags: tagNames, mainTag: mainTagName } = req.body;
 
     const post = await Post.findById(id);
-    if (!post) {
-      return res.status(404).json({ message: "Post not found" });
-    }
+    if (!post) return res.status(404).json({ message: "Post not found" });
 
-    // Update simple fields if provided
     if (title !== undefined) post.title = title;
     if (content !== undefined) post.content = content;
 
-    // Update tags only if both tags and mainTag are provided (full replacement)
-    if (tagNames !== undefined || mainTagName !== undefined) {
+    if (tagNames || mainTagName) {
       if (!Array.isArray(tagNames) || !mainTagName) {
-        return res.status(400).json({
-          message:
-            "To update tags, both 'tags' array and 'mainTag' must be provided",
-        });
+        return res
+          .status(400)
+          .json({
+            message: "To update tags, provide both 'tags' and 'mainTag'",
+          });
       }
-
       const author = req.user!.id;
       const tags: any[] = [];
 
       for (const name of tagNames) {
         let tag = await Tag.findOne({ name: name.toLowerCase() });
-        if (!tag) {
+        if (!tag)
           tag = await Tag.create({
             name: name.toLowerCase(),
             type: "USER",
             createdBy: author,
           });
-        }
         tags.push(tag);
       }
 
@@ -362,18 +357,22 @@ export const updatePost = async (req: Request, res: Response) => {
         name: mainTagName.toLowerCase(),
         type: "SYSTEM",
       });
-      if (!mainTag) {
+      if (!mainTag)
         return res
           .status(400)
           .json({ message: "mainTag must be a valid SYSTEM tag" });
-      }
-
-      if (!tags.some((t) => t._id.toString() === mainTag._id.toString())) {
+      if (!tags.some((t) => t._id.toString() === mainTag._id.toString()))
         tags.push(mainTag);
-      }
 
       post.tags = tags.map((t) => t._id);
       post.mainTag = mainTag._id;
+    }
+
+    // Handle image upload
+    if (req.file?.buffer) {
+      const result = await uploadImage(req.file.buffer);
+      post.imageUrl = result.url;
+      post.imagePublicId = result.public_id;
     }
 
     await post.save();
@@ -418,9 +417,7 @@ export const deletePost = async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const post = await Post.findByIdAndDelete(id);
-    if (!post) {
-      return res.status(404).json({ message: "Post not found" });
-    }
+    if (!post) return res.status(404).json({ message: "Post not found" });
 
     return res.json({ message: "Post deleted successfully" });
   } catch (err) {

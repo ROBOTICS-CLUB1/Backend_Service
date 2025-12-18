@@ -15,36 +15,41 @@ import {
 import { getPostsQueryValidator } from "../validators/query.validator";
 import { validate } from "../middleware/validate.middleware";
 import commentRoutes from "../routes/comment.routes";
+import { upload } from "../middleware/upload.middleware"; // <-- import your upload middleware
 
 const router = Router({ mergeParams: true });
 
-//public read-only routes
+// public read-only routes
 router.get("/", getPostsQueryValidator, validate, getPosts);
 router.get("/:id", getPost);
 
-//protected routes for posts management by admin only
+// protected routes for posts management by admin only
 router.use(authMiddleware);
 
-//create post
+// create post (with image upload)
 router.post(
   "/",
   requireRoles("admin"),
+  upload, 
   createPostValidator,
   validate,
   createPost
 );
 
-//update post
+// update post (with optional image upload)
 router.put(
   "/:id",
   requireRoles("admin"),
+  upload,
   updatePostValidator,
   validate,
   updatePost
 );
 
-//delete post
+// delete post
 router.delete("/:id", requireRoles("admin"), deletePost);
 
+// comment routes
 router.use("/:postId/comments", commentRoutes);
+
 export default router;
