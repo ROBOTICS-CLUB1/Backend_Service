@@ -3,6 +3,7 @@ import errorHandler from "./middleware/error.middleware";
 import authRoutes from "./routes/auth.routes";
 import postRoutes from "./routes/post.routes";
 import adminRoutes from "./routes/admin.routes";
+import projectRoutes from "./routes/project.routes";
 import { setupSwagger } from "./config/swagger";
 
 const app: Application = express();
@@ -19,7 +20,7 @@ app.get("/", (req: Request, res: Response) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/posts", postRoutes);
 app.use("/api/admin", adminRoutes);
-
+app.use("/api/projects",projectRoutes);
 // Swagger documentation
 setupSwagger(app);
 
