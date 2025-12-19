@@ -2,7 +2,7 @@
 
 This document provides a detailed reference for all endpoints in the Robotics Club backend API.
 
-**Current as of: December 18, 2025**
+**Current as of: December 19, 2025**
 
 ---
 
@@ -13,36 +13,27 @@ All authentication endpoints are under `/api/auth`.
 ### Register (Membership Request)
 
 - **Endpoint:** `POST /api/auth/register`
-- **Description:** Creates a new user account and submits a membership request (pending admin approval).
+- **Description:** Creates a new user and submits a membership request (pending admin approval).
 - **Request Body:**
   ```json
   {
     "username": "string",
     "email": "string",
-    "password": "string"
+    "password": "string (min 6 chars)"
   }
   ```
 - **Success Response:** `201 Created`
   ```json
   {
-    "token": "jwt-token-string",
-    "user": {
-      "username": "string",
-      "email": "string",
-      "role": "user",
-      "membershipStatus": "pending",
-      "membershipRequestedAt": "ISODate"
-    }
+    "token": "jwt-string"
   }
   ```
-- **Notes:**
-  - New users receive the role `user` and membership status `pending`.
-  - Pending requests expire after 1 day if not approved.
+- **Notes:** New users get `role: "user"` and `membershipStatus: "pending"`.
 
 ### Login
 
 - **Endpoint:** `POST /api/auth/login`
-- **Description:** Authenticates a registered user and returns a JWT token.
+- **Description:** Authenticates user and returns JWT.
 - **Request Body:**
   ```json
   {
@@ -53,180 +44,132 @@ All authentication endpoints are under `/api/auth`.
 - **Success Response:** `200 OK`
   ```json
   {
-    "token": "jwt-token-string",
-    "user": {
-      "username": "string",
-      "email": "string",
-      "role": "string",
-      "membershipStatus": "string"
-    }
+    "token": "jwt-string"
   }
   ```
 
 ### Admin: Membership Management
 
-Requires `admin` role. All endpoints under `/api/admin/users`.
+Requires `admin` role. Endpoints under `/api/admin`.
 
-#### Get Pending Membership Requests
+#### Get Pending Requests
 
 - **Endpoint:** `GET /api/admin/users/pending`
-- **Description:** Retrieves all users with `membershipStatus: pending`.
-- **Success Response:** `200 OK`
-  ```json
-  [
-    {
-      "id": "string",
-      "username": "string",
-      "email": "string",
-      "role": "user",
-      "membershipStatus": "pending",
-      "membershipRequestedAt": "ISODate"
-    }
-  ]
-  ```
+- **Success Response:** Array of pending users (with `username`, `email`, `membershipRequestedAt`)
 
-#### Approve Membership
+#### Approve User
 
 - **Endpoint:** `PATCH /api/admin/users/{userId}/approve`
-- **Description:** Approves a pending membership request.
-- **Path Parameters:** `userId` (string)
-- **Success Response:** `200 OK` – Updated user object
-  - `role` → `member`
-  - `membershipStatus` → `approved`
+- **Effect:** Sets `role: "member"`, `membershipStatus: "approved"`, sends welcome email.
 
-#### Reject Membership
+#### Reject User
 
 - **Endpoint:** `PATCH /api/admin/users/{userId}/reject`
-- **Description:** Rejects a pending membership request.
-- **Path Parameters:** `userId` (string)
-- **Success Response:** `200 OK` – Updated user object
-  - `membershipStatus` → `rejected`
+- **Effect:** Sets `membershipStatus: "rejected"`, sends polite rejection email.
 
 ---
 
-## Posts Endpoints
+## Posts Endpoints (Blog – Admin Content)
 
-All posts endpoints are under `/api/posts` and require a valid JWT token (any authenticated user can read).
-
-**Admin-only operations:** Create, Update, Delete (require `admin` role).
+Base: `/api/posts`  
+**Read access:** Any authenticated user  
+**Write access:** Admin only
 
 ### Get All Posts
 
 - **Endpoint:** `GET /api/posts`
-- **Description:** Retrieves a paginated list of posts, sorted newest first. Supports filtering and search.
-- **Query Parameters:**
-  - `page` (integer, default: 1) – Page number
-  - `limit` (integer, default: 10, max: 100) – Posts per page
-  - `tag` (string) – Filter by exact tag name (case-insensitive). Returns empty list if tag not found.
-  - `q` (string) – Full-text search in title or content (case-insensitive)
-- **Authentication Required:** Yes
-- **Success Response:** `200 OK`
-  ```json
-  {
-    "posts": [
-      {
-        "_id": "string",
-        "title": "string",
-        "content": "string",
-        "author": {
-          "_id": "string",
-          "username": "string"
-        },
-        "tags": [
-          /* populated Tag objects */
-        ],
-        "mainTag": {
-          /* populated Tag object */
-        },
-        "imageUrl": "string | null",
-        "imagePublicId": "string | null",
-        "createdAt": "ISODate",
-        "updatedAt": "ISODate"
-      }
-    ],
-    "pagination": {
-      "page": 1,
-      "limit": 10,
-      "total": 42,
-      "totalPages": 5
-    }
-  }
-  ```
+- **Query Params:** `page`, `limit` (max 100), `tag`, `q` (search)
+- **Response:** Paginated list with populated `author`, `tags`, `mainTag`
 
 ### Get Single Post
 
 - **Endpoint:** `GET /api/posts/{id}`
-- **Description:** Retrieves a specific post by ID.
-- **Path Parameters:** `id` (string) – Post ID
-- **Authentication Required:** Yes
-- **Success Response:** `200 OK` – Full post object (same structure as in list, with populated tags, mainTag, and author)
-- **Error Responses:**
-  - `404 Not Found` → `{ "message": "Post not found" }`
 
 ### Create Post
 
-- **Endpoint:** `POST /api/posts`
-- **Description:** Creates a new post with optional featured image (admin only).
-- **Authentication Required:** Yes (admin role)
-- **Content-Type:** `multipart/form-data`
-- **Request Body (Form Fields):**
-  - `title` (string, required)
-  - `content` (string, required)
-  - `mainTag` (string, required) – Name of an existing SYSTEM tag
-  - `tags` (array of strings, required) – Tag names (new USER tags created automatically)
-  - `image` (file, optional) – Featured image uploaded to Cloudinary
-- **Success Response:** `201 Created` – Created post object (fully populated)
-- **Error Responses:**
-  - `400 Bad Request` → Missing fields or invalid mainTag
-  - `403 Forbidden` → `{ "message": "Admin access required" }`
+- **Endpoint:** `POST /api/posts` (multipart/form-data, admin only)
+- **Fields:** `title`, `content`, `mainTag` (SYSTEM tag name), `tags` (array), `image` (optional file)
 
 ### Update Post
 
-- **Endpoint:** `PUT /api/posts/{id}`
-- **Description:** Partially updates an existing post (admin only).
-- **Path Parameters:** `id` (string) – Post ID
-- **Authentication Required:** Yes (admin role)
-- **Content-Type:** `multipart/form-data`
-- **Request Body (Form Fields):**
-  - `title` (string, optional)
-  - `content` (string, optional)
-  - `mainTag` + `tags` (both required together for tag updates – full replacement)
-  - `image` (file, optional) – New image replaces the current one (old image remains on Cloudinary)
-- **Success Response:** `200 OK` – Updated post object (fully populated)
-- **Error Responses:**
-  - `400 Bad Request` → Invalid input (e.g., partial tag update)
-  - `403 Forbidden` → `{ "message": "Admin access required" }`
-  - `404 Not Found` → `{ "message": "Post not found" }`
+- **Endpoint:** `PUT /api/posts/{id}` (multipart/form-data, admin only)
+- **Partial updates:** title/content/image independently; tags require both `tags` + `mainTag`
 
 ### Delete Post
 
-- **Endpoint:** `DELETE /api/posts/{id}`
-- **Description:** Permanently deletes a post (admin only). Associated image remains on Cloudinary.
-- **Path Parameters:** `id` (string) – Post ID
-- **Authentication Required:** Yes (admin role)
-- **Success Response:** `200 OK`
+- **Endpoint:** `DELETE /api/posts/{id}` (admin only)
+
+---
+
+## Projects Endpoints (Member Showcase)
+
+Base: `/api/projects`  
+**Read access:** Any authenticated user  
+**Create/Update/Delete own projects:** Members & admins  
+**Full access:** Admins only
+
+### Get All Projects
+
+- **Endpoint:** `GET /api/projects`
+- **Query Params:** `page`, `limit` (max 100), `tag`, `q` (search)
+- **Response:** Paginated list with populated `author`, `tags`, `mainTag`
+
+### Get Single Project
+
+- **Endpoint:** `GET /api/projects/{id}`
+
+### Create Project
+
+- **Endpoint:** `POST /api/projects` (multipart/form-data, member/admin)
+- **Fields:** `title`, `content`, `mainTag` (SYSTEM tag name), `tags` (array), `image` (optional)
+- **Notes:** Members can only create their own projects.
+
+### Update Project
+
+- **Endpoint:** `PUT /api/projects/{id}` (multipart/form-data)
+- **Authorization:**
+  - Owner (project.author === user.id) OR admin
+- **Partial updates:** same rules as posts
+
+### Delete Project
+
+- **Endpoint:** `DELETE /api/projects/{id}`
+- **Authorization:** Owner OR admin
+
+---
+
+## Admin Dashboard
+
+- **Endpoint:** `GET /api/admin/dashboard`
+- **Requires:** `admin` role
+- **Response:**
   ```json
-  { "message": "Post deleted successfully" }
+  {
+    "users": { "total": 120, "pending": 8, "members": 85, "admins": 3 },
+    "posts": { "total": 45 },
+    "projects": { "total": 92 },
+    "tags": { "total": 67, "system": 12, "user": 55 }
+  }
   ```
-- **Error Responses:**
-  - `403 Forbidden` → `{ "message": "Admin access required" }`
-  - `404 Not Found` → `{ "message": "Post not found" }`
 
 ---
 
 ## Global Error Handling
 
-All endpoints use standard HTTP status codes and return JSON error responses where applicable:
-
-| Status Code | Meaning               | Typical Response Body                       |
-| ----------- | --------------------- | ------------------------------------------- |
-| 400         | Bad Request           | `{ "message": "Validation error details" }` |
-| 401         | Unauthorized          | `{ "message": "Invalid or missing token" }` |
-| 403         | Forbidden             | `{ "message": "Admin access required" }`    |
-| 404         | Not Found             | `{ "message": "Resource not found" }`       |
-| 500         | Internal Server Error | `{ "message": "Something went wrong" }`     |
+| Status | Meaning      | Example Body                               |
+| ------ | ------------ | ------------------------------------------ |
+| 400    | Bad Request  | `{ "message": "Missing required fields" }` |
+| 401    | Unauthorized | `{ "message": "Invalid token" }`           |
+| 403    | Forbidden    | `{ "message": "Admin access required" }`   |
+| 404    | Not Found    | `{ "message": "Project not found" }`       |
+| 500    | Server Error | `{ "message": "Server error" }`            |
 
 ---
+
+## API Documentation
+
+Interactive Swagger UI available at:  
+**`/api-docs`** (or whatever path you configured)
 
 ```
 Made with ❤️ by the Robotics Club Dev Team

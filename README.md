@@ -1,66 +1,68 @@
 ## Robotics Club Platform Backend
 
-The Robotics Club Backend exposes a RESTful API built with TypeScript, Express, and MongoDB. It is designed to support user management, role-based access control, and content management for posts.
+---
+
+The Robotics Club Backend exposes a RESTful API built with TypeScript, Express, and MongoDB. It powers a community platform where members can showcase robotics projects, share knowledge through blog posts, and engage with tagged content.
 
 ### Key Features
 
 - **User Authentication & Membership Onboarding**
 
-  - **Registration (`POST /api/auth/register`)**
-
-    - Users register and are set to **pending membership**.
-    - Default role: `user`.
-    - Membership is valid for 1 day pending admin approval.
-    - Returns a JWT token including `role` and `membershipStatus`.
-
-  - **Login with JWT (`POST /api/auth/login`)**
-
-    - Login a registered user.
-    - Returns a JWT token including `role` and `membershipStatus`.
-
+  - **Registration (`POST /api/auth/register`)**  
+    Users sign up and submit a membership request (set to **pending**).  
+    Default role: `user`. Admins must approve to grant full access.
+  - **Login (`POST /api/auth/login`)**  
+    Returns JWT token with `role` and `membershipStatus`.
   - **Admin Membership Management**
+    - List pending requests: `GET /api/admin/users/pending`
+    - Approve: `PATCH /api/admin/users/{userId}/approve` → role becomes `member`
+    - Reject: `PATCH /api/admin/users/{userId}/reject`  
+      → Sends beautifully formatted approval/rejection emails via Maileroo.
 
-    - **Get pending users:** `GET /api/admin/users/pending`
-    - **Approve user:** `PATCH /api/admin/users/{userId}/approve`
-    - **Reject user:** `PATCH /api/admin/users/{userId}/reject`
+- **Roles and Permissions**
 
-  - **Roles and Permissions**
-    - `user` → default registered user, limited access
-    - `member` → approved club member, full access to member features
-    - `admin` → club leaders with full access and approval permissions
+  - `user` → registered, limited access (can view content)
+  - `member` → approved club member → can create/update/delete **their own** projects
+  - `admin` → full access + membership approval + manage all posts/projects
 
-- **Posts Management**
+- **Blog Posts Management (Admin-only Content)**
 
-  - **Get all posts:** `GET /api/posts` (any logged-in user)  
-    Supports pagination (`?page=1&limit=10`), tag filtering (`?tag=robotics`), and text search (`?q=keyword`). Posts are sorted newest first.
+  - Public read access for all authenticated users
+  - Full CRUD operations restricted to admins
+  - Supports featured images (Cloudinary), rich tagging system
 
-  - **Get single post:** `GET /api/posts/:id` (any logged-in user)
+- **Projects Showcase (Member Content)**
 
-  - **Create post:** `POST /api/posts` (admin only)  
-    Multipart/form-data request. Required fields: `title`, `content`, `mainTag` (SYSTEM tag name), `tags` (array of tag names). Optional: `image` (featured image uploaded to Cloudinary).
+  - Public read access for all authenticated users
+  - Members can create, update, and delete **their own** projects
+  - Admins have full access to all projects
+  - Same rich tagging and image support as posts
 
-  - **Update post:** `PUT /api/posts/:id` (admin only)  
-    Multipart/form-data request. Partial updates allowed:  
-    - `title` and `content` can be updated independently  
-    - `tags` and `mainTag` must both be provided for tag changes (full replacement)  
-    - `image` can be uploaded to replace the current featured image
+- **Tagging System**
 
-  - **Delete post:** `DELETE /api/posts/:id` (admin only)
+  - Two tag types: `SYSTEM` (predefined, used for mainTag) and `USER` (dynamically created)
+  - Tags enable powerful filtering and discovery across both posts and projects
+  - `mainTag` must always be a SYSTEM tag and included in the tags array
 
-- **Security**
+- **Additional Features**
 
-  - JWT-based authentication
-  - Admin role verification for sensitive operations
+  - Pagination, tag filtering, and full-text search on list endpoints
+  - JWT-based authentication with role middleware
+  - Swagger/OpenAPI documentation at `/api-docs`
+  - Transactional emails for membership lifecycle
+  - Image uploads via Cloudinary
+  - Comprehensive error handling and logging
 
-- **Error Handling**
-
-  - Global error middleware
-  - Proper HTTP status codes for invalid requests or unauthorized access
-
-- **Future-ready**
-  - Easily extendable for pagination, search, logging, and additional resources
-  - Ready for Swagger documentation at `/api/docs`
+- **Tech Stack**
+  - Node.js + Express + TypeScript
+  - MongoDB + Mongoose
+  - JWT authentication
+  - Nodemailer + Maileroo (SMTP on port 2525)
+  - Cloudinary for image management
+  - Swagger UI for API exploration
 
 ```
- Made by the Robotics Club Dev Team
+
+Made with ❤️ by the Robotics Club Dev Team
+
 ```
