@@ -6,7 +6,10 @@ import {
   approveUser,
   rejectUser,
   getDashboard,
-  getAllUsers
+  getAllUsers,
+  getUserById,
+  updateUser,
+  deleteUser,
 } from "../controllers/admin.controller";
 
 const router = Router();
@@ -20,6 +23,11 @@ router.get("/users/", getAllUsers);
 router.get("/users/pending", getPendingUsers);
 router.patch("/users/:userId/approve", approveUser);
 router.patch("/users/:userId/reject", rejectUser);
+
+//individual user management
+router.get("/users/:id", getUserById);
+router.patch("/users/:id", updateUser);
+router.delete("/users/:id", deleteUser);
 
 // Dashboard metrics
 router.get("/dashboard", getDashboard);
