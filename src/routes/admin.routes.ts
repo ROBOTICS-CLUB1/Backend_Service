@@ -6,6 +6,7 @@ import {
   approveUser,
   rejectUser,
   getDashboard,
+  getAllUsers
 } from "../controllers/admin.controller";
 
 const router = Router();
@@ -14,7 +15,8 @@ const router = Router();
 router.use(authMiddleware);
 router.use(requireRoles("admin"));
 
-// Membership management
+// user management
+router.get("/users/", getAllUsers);
 router.get("/users/pending", getPendingUsers);
 router.patch("/users/:userId/approve", approveUser);
 router.patch("/users/:userId/reject", rejectUser);
