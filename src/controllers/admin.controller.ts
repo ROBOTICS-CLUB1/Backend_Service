@@ -37,9 +37,9 @@ import { MailerService } from "../services/mailer.service";
  */
 export const getPendingUsers = async (req: Request, res: Response) => {
   try {
-    const pendingUsers = await User.find({ membershipStatus: "pending" }).select(
-      "username email membershipRequestedAt"
-    );
+    const pendingUsers = await User.find({
+      membershipStatus: "pending",
+    }).select("username email membershipRequestedAt");
     return res.json(pendingUsers);
   } catch (err) {
     console.error(err);
@@ -261,6 +261,99 @@ export const getDashboard = async (req: Request, res: Response) => {
         total: totalTags,
         system: systemTags,
         user: userTags,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * @swagger
+ * /api/admin/users:
+ *   get:
+ *     summary: Get all users in the system
+ *     description: Returns a paginated list of all users with relevant details. Admin only.
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number (1-based)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *           maximum: 100
+ *         description: Number of users per page
+ *       - in: query
+ *         name: sort
+ *         schema:
+ *           type: string
+ *           default: -createdAt
+ *         description: Sort field (e.g., createdAt, username). Prefix with - for descending.
+ *     responses:
+ *       200:
+ *         description: Paginated list of users
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 users:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/User'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     total:
+ *                       type: integer
+ *                     totalPages:
+ *                       type: integer
+ *       403:
+ *         description: Admin access required
+ *       500:
+ *         description: Server error
+ */
+export const getAllUsers = async (req: Request, res: Response) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+    const sort = (req.query.sort as string) || "-createdAt";
+
+    const skip = (page - 1) * limit;
+
+    const [users, total] = await Promise.all([
+      User.find()
+        .select(
+          "username email role membershipStatus membershipRequestedAt membershipReviewedAt createdAt updatedAt"
+        )
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .lean(), 
+
+      User.countDocuments(),
+    ]);
+
+    return res.json({
+      users,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
       },
     });
   } catch (err) {
