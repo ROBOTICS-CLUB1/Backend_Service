@@ -361,3 +361,216 @@ export const getAllUsers = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
+/**
+ * @swagger
+ * /api/admin/users/{userId}:
+ *   get:
+ *     summary: Get a specific user by ID
+ *     description: Returns detailed information about a single user. Admin only.
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The user ID
+ *     responses:
+ *       200:
+ *         description: User details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       404:
+ *         description: User not found
+ *       403:
+ *         description: Admin access required
+ *       500:
+ *         description: Server error
+ */
+export const getUserById = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findById(userId).select(
+      "-password" // Explicitly exclude password
+    );
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.json(user);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+
+/**
+ * @swagger
+ * /api/admin/users/{userId}:
+ *   patch:
+ *     summary: Update a user's details
+ *     description: Allows admin to update role, membership status, or other fields. Cannot update password here (use dedicated endpoint if needed).
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               username:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               role:
+ *                 type: string
+ *                 enum: [user, member, admin]
+ *               membershipStatus:
+ *                 type: string
+ *                 enum: [pending, approved, rejected, expired]
+ *             example:
+ *               role: "admin"
+ *               membershipStatus: "approved"
+ *     responses:
+ *       200:
+ *         description: User updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *       400:
+ *         description: Invalid updates or no changes provided
+ *       404:
+ *         description: User not found
+ *       403:
+ *         description: Admin access required
+ *       500:
+ *         description: Server error
+ */
+export const updateUser = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const updates = req.body;
+
+    // Prevent updating password through this endpoint
+    if (updates.password) {
+      return res.status(400).json({ message: "Use dedicated password reset endpoint" });
+    }
+
+    // Optional: Prevent certain critical changes (e.g., demoting the last admin)
+    // You can add custom logic here if needed
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // If membership status changed to approved/rejected, update reviewedAt
+    if (updates.membershipStatus && ["approved", "rejected"].includes(updates.membershipStatus)) {
+      user.membershipReviewedAt = new Date();
+      await user.save();
+    }
+
+    return res.json({ message: "User updated successfully", user });
+  } catch (err: any) {
+    if (err.name === "ValidationError") {
+      return res.status(400).json({ message: "Invalid data", errors: err.errors });
+    }
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+
+/**
+ * @swagger
+ * /api/admin/users/{userId}:
+ *   delete:
+ *     summary: Delete a user
+ *     description: Permanently removes a user from the system. Use with caution. Admin only.
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Cannot delete yourself or the last admin
+ *       404:
+ *         description: User not found
+ *       403:
+ *         description: Admin access required
+ *       500:
+ *         description: Server error
+ */
+export const deleteUser = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const currentAdminId = (req as any).user?.id; // Assuming authMiddleware attaches user to req
+
+    if (userId === currentAdminId) {
+      return res.status(400).json({ message: "You cannot delete your own account" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Optional safety: Prevent deleting the last admin
+    if (user.role === "admin") {
+      const adminCount = await User.countDocuments({ role: "admin" });
+      if (adminCount <= 1) {
+        return res.status(400).json({ message: "Cannot delete the last admin account" });
+      }
+    }
+
+    await User.findByIdAndDelete(userId);
+
+    // Optional: Clean up related data (posts, projects, etc.) here or via pre-remove hook
+
+    return res.json({ message: "User deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
