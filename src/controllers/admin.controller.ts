@@ -342,7 +342,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
         .sort(sort)
         .skip(skip)
         .limit(limit)
-        .lean(), 
+        .lean(),
 
       User.countDocuments(),
     ]);
@@ -396,9 +396,7 @@ export const getUserById = async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
 
-    const user = await User.findById(userId).select(
-      "-password" // Explicitly exclude password
-    );
+    const user = await User.findById(userId).select("-password");
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -410,7 +408,6 @@ export const getUserById = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
-
 
 /**
  * @swagger
@@ -473,13 +470,11 @@ export const updateUser = async (req: Request, res: Response) => {
     const { userId } = req.params;
     const updates = req.body;
 
-    // Prevent updating password through this endpoint
     if (updates.password) {
-      return res.status(400).json({ message: "Use dedicated password reset endpoint" });
+      return res
+        .status(400)
+        .json({ message: "Use dedicated password reset endpoint" });
     }
-
-    // Optional: Prevent certain critical changes (e.g., demoting the last admin)
-    // You can add custom logic here if needed
 
     const user = await User.findByIdAndUpdate(
       userId,
@@ -492,7 +487,10 @@ export const updateUser = async (req: Request, res: Response) => {
     }
 
     // If membership status changed to approved/rejected, update reviewedAt
-    if (updates.membershipStatus && ["approved", "rejected"].includes(updates.membershipStatus)) {
+    if (
+      updates.membershipStatus &&
+      ["approved", "rejected"].includes(updates.membershipStatus)
+    ) {
       user.membershipReviewedAt = new Date();
       await user.save();
     }
@@ -500,13 +498,14 @@ export const updateUser = async (req: Request, res: Response) => {
     return res.json({ message: "User updated successfully", user });
   } catch (err: any) {
     if (err.name === "ValidationError") {
-      return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      return res
+        .status(400)
+        .json({ message: "Invalid data", errors: err.errors });
     }
     console.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 };
-
 
 /**
  * @swagger
@@ -545,10 +544,12 @@ export const updateUser = async (req: Request, res: Response) => {
 export const deleteUser = async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
-    const currentAdminId = (req as any).user?.id; // Assuming authMiddleware attaches user to req
+    const currentAdminId = (req as any).user?.id;
 
     if (userId === currentAdminId) {
-      return res.status(400).json({ message: "You cannot delete your own account" });
+      return res
+        .status(400)
+        .json({ message: "You cannot delete your own account" });
     }
 
     const user = await User.findById(userId);
@@ -556,17 +557,16 @@ export const deleteUser = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Optional safety: Prevent deleting the last admin
     if (user.role === "admin") {
       const adminCount = await User.countDocuments({ role: "admin" });
       if (adminCount <= 1) {
-        return res.status(400).json({ message: "Cannot delete the last admin account" });
+        return res
+          .status(400)
+          .json({ message: "Cannot delete the last admin account" });
       }
     }
 
     await User.findByIdAndDelete(userId);
-
-    // Optional: Clean up related data (posts, projects, etc.) here or via pre-remove hook
 
     return res.json({ message: "User deleted successfully" });
   } catch (err) {
