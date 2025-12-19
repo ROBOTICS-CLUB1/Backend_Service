@@ -16,6 +16,7 @@ import { getPostsQueryValidator } from "../validators/query.validator";
 import { validate } from "../middleware/validate.middleware";
 import commentRoutes from "../routes/comment.routes";
 import { upload } from "../middleware/upload.middleware"; // <-- import your upload middleware
+import { setParentModel } from "../middleware/parent.middleware";
 
 const router = Router({ mergeParams: true });
 
@@ -30,7 +31,7 @@ router.use(authMiddleware);
 router.post(
   "/",
   requireRoles("admin"),
-  upload, 
+  upload,
   createPostValidator,
   validate,
   createPost
@@ -50,6 +51,6 @@ router.put(
 router.delete("/:id", requireRoles("admin"), deletePost);
 
 // comment routes
-router.use("/:postId/comments", commentRoutes);
+router.use("/:postId/comments", setParentModel("Post"), commentRoutes);
 
 export default router;

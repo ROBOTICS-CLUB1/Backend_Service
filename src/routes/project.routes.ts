@@ -1,5 +1,3 @@
-// src/routes/project.routes.ts
-
 import { Router } from "express";
 import {
   getProjects,
@@ -12,20 +10,21 @@ import { authMiddleware } from "../middleware/auth.middleware";
 import { requireRoles } from "../middleware/role.middleware";
 import { isOwnerOrAdmin } from "../middleware/ownership.middleware";
 import {
-  createPostValidator, // Reuse or create createProjectValidator if needed
-  updatePostValidator, // Reuse or create updateProjectValidator
-} from "../validators/post.validator"; // Adjust if separate validators needed
+  createPostValidator,
+  updatePostValidator,
+} from "../validators/post.validator";
 import { getPostsQueryValidator } from "../validators/query.validator";
 import { validate } from "../middleware/validate.middleware";
 import { upload } from "../middleware/upload.middleware";
+import commentRoutes from "../routes/comment.routes";
+import { setParentModel } from "../middleware/parent.middleware";
 
 const router = Router({ mergeParams: true });
 
-// Public read-only routes (any authenticated user)
-router.get("/", authMiddleware, getPostsQueryValidator, validate, getProjects);
-router.get("/:id", authMiddleware, getProject);
+// Public read-only routes
+router.get("/", getPostsQueryValidator, validate, getProjects);
+router.get("/:id", getProject);
 
-// Protected routes
 router.use(authMiddleware);
 
 // Create project (member or admin)
@@ -56,5 +55,7 @@ router.delete(
   isOwnerOrAdmin,
   deleteProject
 );
+
+router.use("/:id/comments", setParentModel("Project"), commentRoutes);
 
 export default router;
