@@ -14,6 +14,33 @@ import { uploadImage } from "../services/image.service";
  * @swagger
  * components:
  *   schemas:
+ *     Tag:
+ *       type: object
+ *       required:
+ *         - name
+ *         - type
+ *       properties:
+ *         _id:
+ *           type: string
+ *           example: "64f1a2b3c4d5e6f789012345"
+ *         name:
+ *           type: string
+ *           description: Lowercase tag name
+ *           example: "javascript"
+ *         type:
+ *           type: string
+ *           enum: [SYSTEM, USER]
+ *           description: SYSTEM tags are predefined; USER tags are created dynamically
+ *         createdBy:
+ *           type: string
+ *           description: User ID (only present for USER type tags)
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ *
  *     Post:
  *       type: object
  *       properties:
@@ -35,8 +62,10 @@ import { uploadImage } from "../services/image.service";
  *           type: array
  *           items:
  *             $ref: '#/components/schemas/Tag'
+ *           description: Full tag objects (populated)
  *         mainTag:
  *           $ref: '#/components/schemas/Tag'
+ *           description: Must be a SYSTEM tag and included in tags array
  *         imageUrl:
  *           type: string
  *           nullable: true
@@ -304,7 +333,9 @@ export const createPost = async (req: Request, res: Response) => {
       type: "SYSTEM",
     });
     if (!mainTag) {
-      return res.status(400).json({ message: "mainTag must be a valid SYSTEM tag" });
+      return res
+        .status(400)
+        .json({ message: "mainTag must be a valid SYSTEM tag" });
     }
     if (!tags.some((t) => t._id.toString() === mainTag._id.toString())) {
       tags.push(mainTag);
@@ -411,7 +442,8 @@ export const updatePost = async (req: Request, res: Response) => {
     if (tagNames !== undefined || mainTagName !== undefined) {
       if (!Array.isArray(tagNames) || !mainTagName) {
         return res.status(400).json({
-          message: "Both 'tags' (array) and 'mainTag' must be provided to update tags",
+          message:
+            "Both 'tags' (array) and 'mainTag' must be provided to update tags",
         });
       }
 
@@ -435,7 +467,9 @@ export const updatePost = async (req: Request, res: Response) => {
         type: "SYSTEM",
       });
       if (!mainTag) {
-        return res.status(400).json({ message: "mainTag must be a valid SYSTEM tag" });
+        return res
+          .status(400)
+          .json({ message: "mainTag must be a valid SYSTEM tag" });
       }
       if (!tags.some((t) => t._id.toString() === mainTag._id.toString())) {
         tags.push(mainTag);

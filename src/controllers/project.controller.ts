@@ -14,6 +14,33 @@ import { uploadImage } from "../services/image.service";
  * @swagger
  * components:
  *   schemas:
+ *     Tag:
+ *       type: object
+ *       required:
+ *         - name
+ *         - type
+ *       properties:
+ *         _id:
+ *           type: string
+ *           example: "64f1a2b3c4d5e6f789012345"
+ *         name:
+ *           type: string
+ *           description: Lowercase tag name
+ *           example: "react"
+ *         type:
+ *           type: string
+ *           enum: [SYSTEM, USER]
+ *           description: SYSTEM tags are predefined; USER tags are created dynamically
+ *         createdBy:
+ *           type: string
+ *           description: User ID (only present for USER type tags)
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ *
  *     Project:
  *       type: object
  *       properties:
@@ -34,8 +61,10 @@ import { uploadImage } from "../services/image.service";
  *           type: array
  *           items:
  *             $ref: '#/components/schemas/Tag'
+ *           description: Full tag objects (populated)
  *         mainTag:
  *           $ref: '#/components/schemas/Tag'
+ *           description: Must be a SYSTEM tag and included in tags array
  *         imageUrl:
  *           type: string
  *           nullable: true
@@ -466,6 +495,14 @@ export const updateProject = async (req: Request, res: Response) => {
  *     responses:
  *       200:
  *         description: Project deleted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Project deleted successfully
  *       403:
  *         description: Not authorized
  *       404:
