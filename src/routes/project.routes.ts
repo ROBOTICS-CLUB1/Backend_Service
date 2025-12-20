@@ -18,6 +18,7 @@ import { validate } from "../middleware/validate.middleware";
 import { upload } from "../middleware/upload.middleware";
 import commentRoutes from "../routes/comment.routes";
 import { setParentModel } from "../middleware/parent.middleware";
+import Project from "../models/Project";
 
 const router = Router({ mergeParams: true });
 
@@ -41,7 +42,7 @@ router.post(
 router.put(
   "/:id",
   requireRoles("member", "admin"),
-  isOwnerOrAdmin,
+  isOwnerOrAdmin(Project),
   upload,
   updatePostValidator, // Reuse, or create specific
   validate,
@@ -52,7 +53,7 @@ router.put(
 router.delete(
   "/:id",
   requireRoles("member", "admin"),
-  isOwnerOrAdmin,
+  isOwnerOrAdmin(Project),
   deleteProject
 );
 
