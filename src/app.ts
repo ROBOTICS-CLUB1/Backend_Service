@@ -5,10 +5,12 @@ import postRoutes from "./routes/post.routes";
 import adminRoutes from "./routes/admin.routes";
 import projectRoutes from "./routes/project.routes";
 import { setupSwagger } from "./config/swagger";
+import corsMiddleware from "./config/cors";
 
 const app: Application = express();
 
 // Middleware
+app.use(corsMiddleware);
 app.use(express.json());
 
 // Health check
@@ -20,7 +22,7 @@ app.get("/", (req: Request, res: Response) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/posts", postRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/projects",projectRoutes);
+app.use("/api/projects", projectRoutes);
 // Swagger documentation
 setupSwagger(app);
 
