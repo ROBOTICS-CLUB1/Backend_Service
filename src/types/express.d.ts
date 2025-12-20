@@ -4,8 +4,9 @@ declare global {
   namespace Express {
     interface Request {
       user?: JwtPayloadCustom;
+      parentModel?: "Post" | "Project";
     }
   }
 }
 
-export {}
+export {};
