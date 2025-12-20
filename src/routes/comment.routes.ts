@@ -1,10 +1,16 @@
 import { Router } from "express";
 import { authMiddleware } from "../middleware/auth.middleware";
 import { requireRoles } from "../middleware/role.middleware";
-import { addComment, getComments } from "../controllers/comment.controller";
+import {
+  addComment,
+  getComments,
+  updateComment,
+  deleteComment,
+} from "../controllers/comment.controller";
 import { validate } from "../middleware/validate.middleware";
 import { commentValidator } from "../validators/comment.validator";
-
+import { isOwnerOrAdmin } from "../middleware/ownership.middleware";
+import Comment from "../models/Comment";
 
 const router = Router({ mergeParams: true });
 
@@ -20,5 +26,15 @@ router.post(
   validate,
   addComment
 );
+
+router.patch(
+  "/:commentId",
+  isOwnerOrAdmin(Comment),
+  commentValidator,
+  validate,
+  updateComment
+);
+
+router.delete("/:commentId", isOwnerOrAdmin(Comment), deleteComment);
 
 export default router;

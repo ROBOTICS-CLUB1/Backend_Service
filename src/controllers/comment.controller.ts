@@ -133,3 +133,135 @@ export const getComments = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
+/**
+ * @swagger
+ * tags:
+ *   name: Comments
+ *   description: Manage comments on posts and projects
+ */
+
+/* ... existing addComment and getComments remain unchanged ... */
+
+/**
+ * @swagger
+ * /{parentType}/{parentId}/comments/{commentId}:
+ *   patch:
+ *     summary: Update a comment (owner or admin only)
+ *     tags: [Comments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: parentType
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [posts, projects]
+ *       - in: path
+ *         name: parentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: commentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               content:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Comment updated successfully
+ *       400:
+ *         description: Content is empty or no changes
+ *       403:
+ *         description: Not authorized
+ *       404:
+ *         description: Comment not found
+ *       500:
+ *         description: Server error
+ */
+export const updateComment = async (req: Request, res: Response) => {
+  try {
+    const { commentId } = req.params;
+    const { content } = req.body;
+
+    if (!content || content.trim() === "") {
+      return res.status(400).json({ message: "Content cannot be empty" });
+    }
+
+    const comment = await Comment.findByIdAndUpdate(
+      commentId,
+      { content: content.trim() },
+      { new: true }
+    ).populate("author", "username");
+
+    if (!comment) {
+      return res.status(404).json({ message: "Comment not found" });
+    }
+
+    return res.json(comment);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * @swagger
+ * /{parentType}/{parentId}/comments/{commentId}:
+ *   delete:
+ *     summary: Delete a comment (owner or admin only)
+ *     tags: [Comments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: parentType
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [posts, projects]
+ *       - in: path
+ *         name: parentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: commentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Comment deleted successfully
+ *       403:
+ *         description: Not authorized
+ *       404:
+ *         description: Comment not found
+ *       500:
+ *         description: Server error
+ */
+export const deleteComment = async (req: Request, res: Response) => {
+  try {
+    const { commentId } = req.params;
+
+    const comment = await Comment.findByIdAndDelete(commentId);
+    if (!comment) {
+      return res.status(404).json({ message: "Comment not found" });
+    }
+
+    return res.json({ message: "Comment deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
