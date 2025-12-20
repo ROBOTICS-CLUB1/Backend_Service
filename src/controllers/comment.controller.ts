@@ -25,7 +25,7 @@ import Project from "../models/Project";
  *         schema:
  *           type: string
  *           enum: [posts, projects]
- *         description: Type of parent resource
+ *         description: Type of parent resource (posts or projects)
  *       - in: path
  *         name: parentId
  *         required: true
@@ -43,6 +43,7 @@ import Project from "../models/Project";
  *             properties:
  *               content:
  *                 type: string
+ *                 maxLength: 500
  *     responses:
  *       201:
  *         description: Comment created successfully
@@ -57,8 +58,8 @@ export const addComment = async (req: Request, res: Response) => {
   try {
     const { parentId } = req.params;
     const { content } = req.body;
-    const author = (req as any).user.id;
-    const parentModel = req.parentModel as "Post" | "Project";
+    const author = req.user!.id;                    
+    const parentModel = req.parentModel;           
 
     if (!content || content.trim() === "") {
       return res.status(400).json({ message: "Content cannot be empty" });
@@ -115,7 +116,7 @@ export const addComment = async (req: Request, res: Response) => {
 export const getComments = async (req: Request, res: Response) => {
   try {
     const { parentId } = req.params;
-    const parentModel = req.parentModel as "Post" | "Project";
+    const parentModel = req.parentModel;
 
     const Model = parentModel === "Post" ? Post : Project;
     const parent = await Model.findById(parentId);
@@ -133,15 +134,6 @@ export const getComments = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
-
-/**
- * @swagger
- * tags:
- *   name: Comments
- *   description: Manage comments on posts and projects
- */
-
-/* ... existing addComment and getComments remain unchanged ... */
 
 /**
  * @swagger
@@ -177,11 +169,12 @@ export const getComments = async (req: Request, res: Response) => {
  *             properties:
  *               content:
  *                 type: string
+ *                 maxLength: 500
  *     responses:
  *       200:
  *         description: Comment updated successfully
  *       400:
- *         description: Content is empty or no changes
+ *         description: Content is empty
  *       403:
  *         description: Not authorized
  *       404:
