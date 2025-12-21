@@ -574,3 +574,253 @@ export const deleteUser = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
+/**
+ * @swagger
+ * /api/admin/tags:
+ *   get:
+ *     summary: Get all system tags
+ *     description: Returns a list of all system tags. Admin only.
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of system tags
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Tag'
+ *       403:
+ *         description: Admin access required
+ *       500:
+ *         description: Server error
+ */
+export const getSystemTags = async (req: Request, res: Response) => {
+  try {
+    const tags = await Tag.find({ type: "SYSTEM" }).sort({ name: 1 });
+    return res.json(tags);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * @swagger
+ * /api/admin/tags/{tagId}:
+ *   get:
+ *     summary: Get a specific system tag by ID
+ *     description: Returns detailed information about a single system tag. Admin only.
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tagId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The tag ID
+ *     responses:
+ *       200:
+ *         description: Tag details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Tag'
+ *       404:
+ *         description: System tag not found
+ *       403:
+ *         description: Admin access required
+ *       500:
+ *         description: Server error
+ */
+export const getSystemTagById = async (req: Request, res: Response) => {
+  try {
+    const { tagId } = req.params;
+    const tag = await Tag.findOne({ _id: tagId, type: "SYSTEM" });
+    if (!tag) {
+      return res.status(404).json({ message: "System tag not found" });
+    }
+    return res.json(tag);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * @swagger
+ * /api/admin/tags:
+ *   post:
+ *     summary: Create a new system tag
+ *     description: Creates a new system tag. Admin only.
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: The name of the tag
+ *     responses:
+ *       201:
+ *         description: System tag created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Tag'
+ *       400:
+ *         description: Invalid data or duplicate tag
+ *       403:
+ *         description: Admin access required
+ *       500:
+ *         description: Server error
+ */
+export const createSystemTag = async (req: Request, res: Response) => {
+  try {
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ message: "Name is required" });
+    }
+    const tag = new Tag({
+      name,
+      type: "SYSTEM",
+    });
+    await tag.save();
+    return res.status(201).json(tag);
+  } catch (err: any) {
+    if (err.code === 11000) {
+      return res.status(400).json({ message: "Duplicate tag name for type SYSTEM" });
+    }
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * @swagger
+ * /api/admin/tags/{tagId}:
+ *   patch:
+ *     summary: Update a system tag
+ *     description: Updates the name of a system tag. Admin only.
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tagId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The tag ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: The new name of the tag
+ *     responses:
+ *       200:
+ *         description: System tag updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Tag'
+ *       400:
+ *         description: Invalid data or no changes provided
+ *       404:
+ *         description: System tag not found
+ *       403:
+ *         description: Admin access required
+ *       500:
+ *         description: Server error
+ */
+export const updateSystemTag = async (req: Request, res: Response) => {
+  try {
+    const { tagId } = req.params;
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ message: "Name is required for update" });
+    }
+    const tag = await Tag.findOneAndUpdate(
+      { _id: tagId, type: "SYSTEM" },
+      { name },
+      { new: true, runValidators: true }
+    );
+    if (!tag) {
+      return res.status(404).json({ message: "System tag not found" });
+    }
+    return res.json(tag);
+  } catch (err: any) {
+    if (err.code === 11000) {
+      return res.status(400).json({ message: "Duplicate tag name for type SYSTEM" });
+    }
+    if (err.name === "ValidationError") {
+      return res.status(400).json({ message: "Invalid data", errors: err.errors });
+    }
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * @swagger
+ * /api/admin/tags/{tagId}:
+ *   delete:
+ *     summary: Delete a system tag
+ *     description: Permanently removes a system tag from the system. Use with caution. Admin only.
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tagId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The tag ID
+ *     responses:
+ *       200:
+ *         description: System tag deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       404:
+ *         description: System tag not found
+ *       403:
+ *         description: Admin access required
+ *       500:
+ *         description: Server error
+ */
+export const deleteSystemTag = async (req: Request, res: Response) => {
+  try {
+    const { tagId } = req.params;
+    const tag = await Tag.findOneAndDelete({ _id: tagId, type: "SYSTEM" });
+    if (!tag) {
+      return res.status(404).json({ message: "System tag not found" });
+    }
+    return res.json({ message: "System tag deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
