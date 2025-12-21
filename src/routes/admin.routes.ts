@@ -10,6 +10,11 @@ import {
   getUserById,
   updateUser,
   deleteUser,
+  getSystemTags,
+  getSystemTagById,
+  createSystemTag,
+  updateSystemTag,
+  deleteSystemTag,
 } from "../controllers/admin.controller";
 
 const router = Router();
@@ -28,6 +33,13 @@ router.patch("/users/:userId/reject", rejectUser);
 router.get("/users/:id", getUserById);
 router.patch("/users/:id", updateUser);
 router.delete("/users/:id", deleteUser);
+
+//project or post tags management
+router.get("/tags", getSystemTags);
+router.get("/tags/:tagId", getSystemTagById);
+router.post("/tags", createSystemTag);
+router.patch("/tags/:tagId", updateSystemTag);
+router.delete("/tags/:tagId", deleteSystemTag);
 
 // Dashboard metrics
 router.get("/dashboard", getDashboard);
