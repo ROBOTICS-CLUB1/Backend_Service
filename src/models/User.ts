@@ -16,7 +16,6 @@ interface IUser {
   membershipRequestedAt?: Date;
   membershipReviewedAt?: Date;
 
-  
   bio?: string;
   profilePicture?: string;
 }
@@ -69,7 +68,6 @@ const userSchema = new Schema<UserDocument>(
       type: Date,
     },
 
-    // New: Profile fields
     bio: {
       type: String,
       trim: true,
@@ -79,13 +77,20 @@ const userSchema = new Schema<UserDocument>(
 
     profilePicture: {
       type: String,
-      default: "https://api.dicebear.com/7.x/initials/svg?seed=", 
     },
   },
   { timestamps: true }
 );
 
-// Password hashing
+//profile setting hook
+userSchema.pre("save", function (this: UserDocument) {
+  if (!this.profilePicture || this.profilePicture.trim() === "") {
+    const seed = encodeURIComponent(this.username.trim());
+    this.profilePicture = `https://api.dicebear.com/7.x/initials/svg?seed=${seed}`;
+  }
+});
+
+// Password hashing hook
 userSchema.pre("save", async function (this: UserDocument) {
   if (!this.isModified("password")) return;
 
