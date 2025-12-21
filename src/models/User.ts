@@ -1,3 +1,4 @@
+// models/User.ts
 import { Schema, model, Document } from "mongoose";
 import bcrypt from "bcrypt";
 
@@ -14,6 +15,10 @@ interface IUser {
 
   membershipRequestedAt?: Date;
   membershipReviewedAt?: Date;
+
+  
+  bio?: string;
+  profilePicture?: string;
 }
 
 interface IUserMethods {
@@ -63,10 +68,24 @@ const userSchema = new Schema<UserDocument>(
     membershipReviewedAt: {
       type: Date,
     },
+
+    // New: Profile fields
+    bio: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 500,
+    },
+
+    profilePicture: {
+      type: String,
+      default: "https://api.dicebear.com/7.x/initials/svg?seed=", 
+    },
   },
   { timestamps: true }
 );
 
+// Password hashing
 userSchema.pre("save", async function (this: UserDocument) {
   if (!this.isModified("password")) return;
 
