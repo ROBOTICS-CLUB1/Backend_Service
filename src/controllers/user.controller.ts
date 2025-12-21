@@ -123,10 +123,14 @@ export const updateMe = async (req: Request, res: Response) => {
     return res.status(200).json(user);
   } catch (err: any) {
     if (err.name === "ValidationError") {
-      return res.status(400).json({ message: "Validation error", errors: err.errors });
+      return res
+        .status(400)
+        .json({ message: "Validation error", errors: err.errors });
     }
     if (err.code === 11000) {
-      return res.status(409).json({ message: "Username or email already taken" });
+      return res
+        .status(409)
+        .json({ message: "Username or email already taken" });
     }
     console.error(err);
     return res.status(500).json({ message: "Server error" });
@@ -199,7 +203,8 @@ export const changePassword = async (req: Request, res: Response) => {
 
     if (!currentPassword || !password || !passwordConfirm) {
       return res.status(400).json({
-        message: "currentPassword, password, and passwordConfirm are all required",
+        message:
+          "currentPassword, password, and passwordConfirm are all required",
       });
     }
 
@@ -268,13 +273,131 @@ export const deleteMe = async (req: Request, res: Response) => {
 
     if (user.role === "admin") {
       return res.status(403).json({
-        message: "Admin accounts cannot be deleted via this endpoint. Use the admin panel.",
+        message:
+          "Admin accounts cannot be deleted via this endpoint. Use the admin panel.",
       });
     }
 
     await User.findByIdAndDelete(userId);
 
     return res.status(200).json({ message: "Account deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   get:
+ *     summary: Get a user's public profile by ID
+ *     description: Returns public information about a user. Accessible to anyone (no auth required).
+ *     tags: [Users]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The MongoDB ObjectId of the user
+ *     responses:
+ *       200:
+ *         description: Public profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 _id:
+ *                   type: string
+ *                 username:
+ *                   type: string
+ *                 bio:
+ *                   type: string
+ *                 profilePicture:
+ *                   type: string
+ *                 createdAt:
+ *                   type: string
+ *                   format: date-time
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Internal server error
+ */
+export const getPublicProfileById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const user = await User.findById(id).select(
+      "username bio profilePicture createdAt"
+    );
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(200).json(user);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * @swagger
+ * /api/users/username/{username}:
+ *   get:
+ *     summary: Get a user's public profile by username
+ *     description: Returns public information about a user using their username. Ideal for shareable links.
+ *     tags: [Users]
+ *     parameters:
+ *       - in: path
+ *         name: username
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The username of the user (case-sensitive)
+ *     responses:
+ *       200:
+ *         description: Public profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 _id:
+ *                   type: string
+ *                 username:
+ *                   type: string
+ *                 bio:
+ *                   type: string
+ *                 profilePicture:
+ *                   type: string
+ *                 createdAt:
+ *                   type: string
+ *                   format: date-time
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Internal server error
+ */
+export const getPublicProfileByUsername = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const { username } = req.params;
+
+    const user = await User.findOne({ username }).select(
+      "username bio profilePicture createdAt"
+    );
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(200).json(user);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Server error" });
