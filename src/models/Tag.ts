@@ -5,7 +5,7 @@ export type TagType = "SYSTEM" | "USER";
 interface ITag {
   name: string;
   type: TagType;
-  createdBy?: string; // user id, undefined for SYSTEM tags
+  createdBy: Types.ObjectId; //Must be either from a valid system user
 }
 
 type TagDocument = Document & ITag;
@@ -24,10 +24,8 @@ const tagSchema = new Schema<TagDocument>(
       required: true,
     },
     createdBy: {
-      type: String,
-      required: function () {
-        return this.type === "USER";
-      },
+      type: Schema.Types.ObjectId,
+      required: true,
     },
   },
   { timestamps: true }
