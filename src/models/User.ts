@@ -17,6 +17,8 @@ interface IUser {
 
   bio?: string;
   profilePicture?: string;
+
+  avatarPublicId?: string;
 }
 
 interface IUserMethods {
@@ -75,6 +77,10 @@ const userSchema = new Schema<UserDocument>(
     },
 
     profilePicture: {
+      type: String,
+    },
+
+    avatarPublicId: {
       type: String,
     },
   },
