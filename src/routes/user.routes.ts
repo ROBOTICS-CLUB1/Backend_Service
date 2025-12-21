@@ -7,7 +7,11 @@ import {
   deleteMe,
   getPublicProfileById,
   getPublicProfileByUsername,
+  uploadAvatar,
+  removeAvatar,
 } from "../controllers/user.controller";
+
+import { uploadMiddleware } from "../middleware/upload.middleware";
 
 const router = Router();
 //public profile routes:
@@ -23,4 +27,7 @@ router.patch("/me", updateMe);
 router.patch("/me/password", changePassword);
 router.delete("/me", deleteMe);
 
+//Avatar upload and removal
+router.post("/me/avatar", uploadMiddleware, uploadAvatar);
+router.delete("/me/avatar", removeAvatar);
 export default router;

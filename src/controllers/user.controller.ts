@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import User from "../models/User";
+import { uploadImage } from "../services/image.service";
 
 /**
  * @swagger
@@ -400,6 +401,130 @@ export const getPublicProfileByUsername = async (
     return res.status(200).json(user);
   } catch (err) {
     console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * @swagger
+ * /api/users/me/avatar:
+ *   post:
+ *     summary: Upload a new avatar for the authenticated user
+ *     description: |
+ *       Uploads an image (field name: "image") to Cloudinary in the "avatars" folder.
+ *       Replaces any previous custom avatar and updates the user's profilePicture.
+ *       Uses the same upload pipeline as posts/projects for consistency.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Image file (JPEG, PNG, WebP, GIF) - max 5MB
+ *     responses:
+ *       200:
+ *         description: Avatar uploaded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 profilePicture:
+ *                   type: string
+ *       400:
+ *         description: No file uploaded or invalid file type
+ *       413:
+ *         description: File too large
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Upload failed
+ */
+export const uploadAvatar = async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No image file uploaded" });
+    }
+
+    const userId = (req as any).user?.id;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const { url, public_id } = await uploadImage(req.file.buffer, "avatars");
+
+    user.profilePicture = url;
+    user.avatarPublicId = public_id;
+    await user.save();
+
+    return res.status(200).json({
+      message: "Avatar uploaded successfully",
+      profilePicture: url,
+    });
+  } catch (err) {
+    console.error("Avatar upload error:", err);
+    return res.status(500).json({ message: "Failed to upload avatar" });
+  }
+};
+
+/**
+ * @swagger
+ * /api/users/me/avatar:
+ *   delete:
+ *     summary: Remove custom avatar and revert to default (DiceBear initials)
+ *     description: Deletes the current custom avatar and falls back to the auto-generated DiceBear avatar based on username.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Avatar removed, reverted to default
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 profilePicture:
+ *                   type: string
+ *                   description: New (default) avatar URL
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
+ */
+export const removeAvatar = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    user.profilePicture = undefined;
+    user.avatarPublicId = undefined;
+    await user.save();
+
+    return res.status(200).json({
+      message: "Custom avatar removed, reverted to default",
+      profilePicture: user.profilePicture, 
+    });
+  } catch (err) {
+    console.error("Remove avatar error:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
