@@ -1,7 +1,7 @@
 import { Schema, model, Types, Document } from "mongoose";
 
 export interface IComment extends Document {
-  parent: Types.ObjectId;      
+  parent: Types.ObjectId;
   parentModel: "Post" | "Project";
   author: Types.ObjectId;
   content: string;
@@ -14,6 +14,7 @@ const commentSchema = new Schema<IComment>(
     parent: {
       type: Schema.Types.ObjectId,
       required: true,
+      refPath: "parentModel",
     },
     parentModel: {
       type: String,
