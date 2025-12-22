@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import Comment from "../models/Comment";
-import Post from "../models/Post";
-import Project from "../models/Project";
+import { getModelEntry } from "../utils/modelRegistry";
 
 /**
  * @swagger
@@ -56,16 +55,16 @@ import Project from "../models/Project";
  */
 export const addComment = async (req: Request, res: Response) => {
   try {
-    const { parentId } = req.params;
+    const { parentType, parentId } = req.params;
     const { content } = req.body;
-    const author = req.user!.id;                    
-    const parentModel = req.parentModel;           
+    const author = req.user!.id;
+
+    const { model: Model, name: parentModel } = getModelEntry(parentType);
 
     if (!content || content.trim() === "") {
       return res.status(400).json({ message: "Content cannot be empty" });
     }
 
-    const Model = parentModel === "Post" ? Post : Project;
     const parent = await Model.findById(parentId);
     if (!parent) {
       return res.status(404).json({ message: `${parentModel} not found` });
@@ -81,8 +80,11 @@ export const addComment = async (req: Request, res: Response) => {
     await comment.populate("author", "username");
 
     return res.status(201).json(comment);
-  } catch (err) {
+  } catch (err: any) {
     console.error(err);
+    if (err.message?.includes("Invalid parent type")) {
+      return res.status(400).json({ message: err.message });
+    }
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -115,10 +117,10 @@ export const addComment = async (req: Request, res: Response) => {
  */
 export const getComments = async (req: Request, res: Response) => {
   try {
-    const { parentId } = req.params;
-    const parentModel = req.parentModel;
+    const { parentType, parentId } = req.params;
 
-    const Model = parentModel === "Post" ? Post : Project;
+    const { model: Model, name: parentModel } = getModelEntry(parentType);
+
     const parent = await Model.findById(parentId);
     if (!parent) {
       return res.status(404).json({ message: `${parentModel} not found` });
@@ -129,8 +131,11 @@ export const getComments = async (req: Request, res: Response) => {
       .sort({ createdAt: -1 });
 
     return res.json(comments);
-  } catch (err) {
+  } catch (err: any) {
     console.error(err);
+    if (err.message?.includes("Invalid parent type")) {
+      return res.status(400).json({ message: err.message });
+    }
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -184,26 +189,41 @@ export const getComments = async (req: Request, res: Response) => {
  */
 export const updateComment = async (req: Request, res: Response) => {
   try {
-    const { commentId } = req.params;
+    const { parentType, parentId, commentId } = req.params;
     const { content } = req.body;
+
+    const { name: parentModel } = getModelEntry(parentType);
 
     if (!content || content.trim() === "") {
       return res.status(400).json({ message: "Content cannot be empty" });
     }
 
-    const comment = await Comment.findByIdAndUpdate(
+    const comment = await Comment.findById(commentId);
+    if (!comment) {
+      return res.status(404).json({ message: "Comment not found" });
+    }
+
+    if (
+      comment.parent.toString() !== parentId ||
+      comment.parentModel !== parentModel
+    ) {
+      return res
+        .status(403)
+        .json({ message: "Comment does not belong to this resource" });
+    }
+
+    const updatedComment = await Comment.findByIdAndUpdate(
       commentId,
       { content: content.trim() },
       { new: true }
     ).populate("author", "username");
 
-    if (!comment) {
-      return res.status(404).json({ message: "Comment not found" });
-    }
-
-    return res.json(comment);
-  } catch (err) {
+    return res.json(updatedComment);
+  } catch (err: any) {
     console.error(err);
+    if (err.message?.includes("Invalid parent type")) {
+      return res.status(400).json({ message: err.message });
+    }
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -245,16 +265,32 @@ export const updateComment = async (req: Request, res: Response) => {
  */
 export const deleteComment = async (req: Request, res: Response) => {
   try {
-    const { commentId } = req.params;
+    const { parentType, parentId, commentId } = req.params;
 
-    const comment = await Comment.findByIdAndDelete(commentId);
+    const { name: parentModel } = getModelEntry(parentType);
+
+    const comment = await Comment.findById(commentId);
     if (!comment) {
       return res.status(404).json({ message: "Comment not found" });
     }
 
+    if (
+      comment.parent.toString() !== parentId ||
+      comment.parentModel !== parentModel
+    ) {
+      return res
+        .status(403)
+        .json({ message: "Comment does not belong to this resource" });
+    }
+
+    await Comment.findByIdAndDelete(commentId);
+
     return res.json({ message: "Comment deleted successfully" });
-  } catch (err) {
+  } catch (err: any) {
     console.error(err);
+    if (err.message?.includes("Invalid parent type")) {
+      return res.status(400).json({ message: err.message });
+    }
     return res.status(500).json({ message: "Server error" });
   }
 };
