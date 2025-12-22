@@ -16,8 +16,6 @@ import {
 import { getPostsQueryValidator } from "../validators/query.validator";
 import { validate } from "../middleware/validate.middleware";
 import { upload } from "../middleware/upload.middleware";
-import commentRoutes from "../routes/comment.routes";
-import { setParentModel } from "../middleware/parent.middleware";
 import Project from "../models/Project";
 
 const router = Router({ mergeParams: true });
@@ -56,7 +54,5 @@ router.delete(
   isOwnerOrAdmin(Project),
   deleteProject
 );
-
-router.use("/:id/comments", setParentModel("Project"), commentRoutes);
 
 export default router;
