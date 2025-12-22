@@ -10,17 +10,20 @@ import {
 import { validate } from "../middleware/validate.middleware";
 import { commentValidator } from "../validators/comment.validator";
 import { isOwnerOrAdmin } from "../middleware/ownership.middleware";
+import {validateParentType} from "../validators/comment.validator"
 import Comment from "../models/Comment";
 
 const router = Router({ mergeParams: true });
 
-// Public: get comments for a post
+router.use(validateParentType);
+
+// Public
 router.get("/", getComments);
 
-// Protected: only members and admins can add comments
+// Protected
+router.use(authMiddleware);
 router.post(
   "/",
-  authMiddleware,
   requireRoles("member", "admin"),
   commentValidator,
   validate,
