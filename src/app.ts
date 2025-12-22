@@ -5,6 +5,7 @@ import postRoutes from "./routes/post.routes";
 import adminRoutes from "./routes/admin.routes";
 import projectRoutes from "./routes/project.routes";
 import userRoutes from "./routes/user.routes";
+import commentRoutes from "./routes/comment.routes";
 import { setupSwagger } from "./config/swagger";
 import corsMiddleware from "./config/cors";
 
@@ -25,6 +26,7 @@ app.use("/api/posts", postRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/:parentType/:parentId/comments", commentRoutes);
 
 // Swagger documentation
 setupSwagger(app);
