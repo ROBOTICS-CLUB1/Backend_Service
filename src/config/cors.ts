@@ -1,8 +1,8 @@
 import cors, { CorsOptions } from "cors";
-import { RequestHandler } from "express"; 
+import { RequestHandler } from "express";
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",").map(origin => origin.trim())
+  ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
   : ["http://localhost:3000", "http://localhost:5173"];
 
 const corsOptions: CorsOptions = {
@@ -10,7 +10,8 @@ const corsOptions: CorsOptions = {
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error("Not allowed by CORS"));
+      console.warn("CORS blocked origin: ", origin);
+      callback(null, false);
     }
   },
   credentials: true,
