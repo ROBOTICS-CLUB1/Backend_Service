@@ -304,7 +304,6 @@ export const createProject = async (req: Request, res: Response) => {
         tag = await Tag.create({
           name: name.toLowerCase(),
           type: "USER",
-          createdBy: author,
         });
       }
       tags.push(tag);
@@ -439,7 +438,6 @@ export const updateProject = async (req: Request, res: Response) => {
           tag = await Tag.create({
             name: name.toLowerCase(),
             type: "USER",
-            createdBy: author,
           });
         }
         tags.push(tag);
