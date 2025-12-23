@@ -579,31 +579,35 @@ export const deleteUser = async (req: Request, res: Response) => {
  * @swagger
  * tags:
  *   name: Tags
- *   description: System tags management
+ *   description: System tags management (Admin only)
  */
 
 /**
  * @swagger
- * /api/tags:
+ * /api/admin/tags:
  *   get:
- *     summary: Get all tags
- *     description: Returns all system tags available on the platform.
+ *     summary: Get all system tags
+ *     description: Returns all system tags available on the platform. Admin only.
  *     tags: [Tags]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: List of tags
+ *         description: List of system tags
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/Tag'
+ *       403:
+ *         description: Admin access required
  *       500:
  *         description: Server error
  */
 export const getAllTags = async (req: Request, res: Response) => {
   try {
-    const tags = await Tag.find().sort({ name: 1 });
+    const tags = await Tag.find({ type: "SYSTEM" }).sort({ name: 1 });
     return res.status(200).json(tags);
   } catch (err) {
     console.error(err);
@@ -613,16 +617,20 @@ export const getAllTags = async (req: Request, res: Response) => {
 
 /**
  * @swagger
- * /api/tags/{id}:
+ * /api/admin/tags/{id}:
  *   get:
- *     summary: Get a tag by ID
+ *     summary: Get a system tag by ID
+ *     description: Returns a specific system tag by ID. Admin only.
  *     tags: [Tags]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
+ *         description: The system tag ID
  *     responses:
  *       200:
  *         description: Tag found
@@ -632,18 +640,16 @@ export const getAllTags = async (req: Request, res: Response) => {
  *               $ref: '#/components/schemas/Tag'
  *       404:
  *         description: Tag not found
+ *       403:
+ *         description: Admin access required
  *       500:
  *         description: Server error
  */
 export const getTagById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-
-    const tag = await Tag.findById(id);
-    if (!tag) {
-      return res.status(404).json({ message: "Tag not found" });
-    }
-
+    const tag = await Tag.findOne({ _id: id, type: "SYSTEM" });
+    if (!tag) return res.status(404).json({ message: "Tag not found" });
     return res.status(200).json(tag);
   } catch (err) {
     console.error(err);
@@ -653,9 +659,9 @@ export const getTagById = async (req: Request, res: Response) => {
 
 /**
  * @swagger
- * /api/tags:
+ * /api/admin/tags:
  *   post:
- *     summary: Create a new tag
+ *     summary: Create a new system tag
  *     description: Creates a new system tag. Admin only.
  *     tags: [Tags]
  *     security:
@@ -668,17 +674,10 @@ export const getTagById = async (req: Request, res: Response) => {
  *             type: object
  *             required:
  *               - name
- *               - slug
  *             properties:
  *               name:
  *                 type: string
  *                 example: Robotics
- *               slug:
- *                 type: string
- *                 example: robotics
- *               description:
- *                 type: string
- *                 example: Robotics related content
  *     responses:
  *       201:
  *         description: Tag created
@@ -687,7 +686,7 @@ export const getTagById = async (req: Request, res: Response) => {
  *             schema:
  *               $ref: '#/components/schemas/Tag'
  *       400:
- *         description: Duplicate tag name or slug
+ *         description: Duplicate tag name or invalid data
  *       403:
  *         description: Admin access required
  *       500:
@@ -695,23 +694,16 @@ export const getTagById = async (req: Request, res: Response) => {
  */
 export const createTag = async (req: Request, res: Response) => {
   try {
-    const { name, slug, description } = req.body;
-
-    if (!name || !slug) {
-      return res.status(400).json({ message: "Name and slug are required" });
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: "Tag name is required" });
     }
-
-    const tag = new Tag({
-      name,
-      slug,
-      description,
-    });
-
+    const tag = new Tag({ name, type: "SYSTEM" });
     await tag.save();
     return res.status(201).json(tag);
   } catch (err: any) {
     if (err.code === 11000) {
-      return res.status(400).json({ message: "Duplicate tag name or slug" });
+      return res.status(400).json({ message: "Duplicate tag name" });
     }
     console.error(err);
     return res.status(500).json({ message: "Server error" });
@@ -720,10 +712,10 @@ export const createTag = async (req: Request, res: Response) => {
 
 /**
  * @swagger
- * /api/tags/{id}:
+ * /api/admin/tags/{id}:
  *   put:
- *     summary: Update a tag
- *     description: Updates an existing tag. Admin only.
+ *     summary: Update a system tag
+ *     description: Updates the name of an existing system tag. Admin only.
  *     tags: [Tags]
  *     security:
  *       - bearerAuth: []
@@ -733,6 +725,7 @@ export const createTag = async (req: Request, res: Response) => {
  *         required: true
  *         schema:
  *           type: string
+ *         description: The system tag ID
  *     requestBody:
  *       required: true
  *       content:
@@ -742,10 +735,7 @@ export const createTag = async (req: Request, res: Response) => {
  *             properties:
  *               name:
  *                 type: string
- *               slug:
- *                 type: string
- *               description:
- *                 type: string
+ *                 example: Robotics
  *     responses:
  *       200:
  *         description: Tag updated
@@ -755,6 +745,8 @@ export const createTag = async (req: Request, res: Response) => {
  *               $ref: '#/components/schemas/Tag'
  *       404:
  *         description: Tag not found
+ *       400:
+ *         description: Duplicate tag name or invalid data
  *       403:
  *         description: Admin access required
  *       500:
@@ -763,22 +755,17 @@ export const createTag = async (req: Request, res: Response) => {
 export const updateTag = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, slug, description } = req.body;
-
-    const tag = await Tag.findByIdAndUpdate(
-      id,
-      { name, slug, description },
+    const { name } = req.body;
+    const tag = await Tag.findOneAndUpdate(
+      { _id: id, type: "SYSTEM" },
+      { name },
       { new: true, runValidators: true }
     );
-
-    if (!tag) {
-      return res.status(404).json({ message: "Tag not found" });
-    }
-
+    if (!tag) return res.status(404).json({ message: "Tag not found" });
     return res.status(200).json(tag);
   } catch (err: any) {
     if (err.code === 11000) {
-      return res.status(400).json({ message: "Duplicate tag name or slug" });
+      return res.status(400).json({ message: "Duplicate tag name" });
     }
     console.error(err);
     return res.status(500).json({ message: "Server error" });
@@ -787,10 +774,10 @@ export const updateTag = async (req: Request, res: Response) => {
 
 /**
  * @swagger
- * /api/tags/{id}:
+ * /api/admin/tags/{id}:
  *   delete:
- *     summary: Delete a tag
- *     description: Deletes a tag. Admin only.
+ *     summary: Delete a system tag
+ *     description: Deletes a system tag. Admin only.
  *     tags: [Tags]
  *     security:
  *       - bearerAuth: []
@@ -800,6 +787,7 @@ export const updateTag = async (req: Request, res: Response) => {
  *         required: true
  *         schema:
  *           type: string
+ *         description: The system tag ID
  *     responses:
  *       200:
  *         description: Tag deleted successfully
@@ -813,12 +801,8 @@ export const updateTag = async (req: Request, res: Response) => {
 export const deleteTag = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-
-    const tag = await Tag.findByIdAndDelete(id);
-    if (!tag) {
-      return res.status(404).json({ message: "Tag not found" });
-    }
-
+    const tag = await Tag.findOneAndDelete({ _id: id, type: "SYSTEM" });
+    if (!tag) return res.status(404).json({ message: "Tag not found" });
     return res.status(200).json({ message: "Tag deleted successfully" });
   } catch (err) {
     console.error(err);
