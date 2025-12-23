@@ -46,6 +46,22 @@ import { signToken } from "../utils/jwt";
  *               properties:
  *                 token:
  *                   type: string
+ *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       example: 64f9c2e8b2a1c9a1d1234567
+ *                     username:
+ *                       type: string
+ *                       example: johndoe
+ *                     role:
+ *                       type: string
+ *                       example: user
+ *                     membershipStatus:
+ *                       type: string
+ *                       example: pending
  *       400:
  *         description: Email already in use
  *       500:
@@ -76,7 +92,15 @@ export const register = async (req: Request, res: Response) => {
       membershipStatus: user.membershipStatus,
     });
 
-    return res.status(201).json({ token });
+    return res.status(201).json({
+      token,
+      user: {
+        id: user._id.toString(),
+        username: user.username,
+        role: user.role,
+        membershipStatus: user.membershipStatus,
+      },
+    });
   } catch {
     return res.status(500).json({ message: "Server error" });
   }
@@ -115,6 +139,22 @@ export const register = async (req: Request, res: Response) => {
  *               properties:
  *                 token:
  *                   type: string
+ *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       example: 64f9c2e8b2a1c9a1d1234567
+ *                     username:
+ *                       type: string
+ *                       example: johndoe
+ *                     role:
+ *                       type: string
+ *                       example: admin
+ *                     membershipStatus:
+ *                       type: string
+ *                       example: approved
  *       400:
  *         description: Invalid credentials
  *       500:
@@ -140,7 +180,15 @@ export const login = async (req: Request, res: Response) => {
       membershipStatus: user.membershipStatus,
     });
 
-    return res.json({ token });
+    return res.status(200).json({
+      token,
+      user: {
+        id: user._id.toString(),
+        username: user.username,
+        role: user.role,
+        membershipStatus: user.membershipStatus,
+      },
+    });
   } catch {
     return res.status(500).json({ message: "Server error" });
   }
