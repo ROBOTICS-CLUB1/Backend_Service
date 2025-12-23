@@ -331,7 +331,7 @@ export const getPublicProfileById = async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const user = await User.findById(id).select(
-      "username bio profilePicture createdAt"
+      "username role bio profilePicture createdAt"
     );
 
     if (!user) {
@@ -391,7 +391,7 @@ export const getPublicProfileByUsername = async (
     const { username } = req.params;
 
     const user = await User.findOne({ username }).select(
-      "username bio profilePicture createdAt"
+      "username role bio profilePicture createdAt"
     );
 
     if (!user) {
