@@ -1,14 +1,13 @@
-import { Schema, model, Document, Types } from "mongoose";
+import { Schema, model, Document } from "mongoose";
 
 export type TagType = "SYSTEM" | "USER";
 
-interface ITag {
+export interface ITag {
   name: string;
   type: TagType;
-  createdBy: Types.ObjectId; //Must be either from a valid system user
 }
 
-type TagDocument = Document & ITag;
+export type TagDocument = Document & ITag;
 
 const tagSchema = new Schema<TagDocument>(
   {
@@ -23,15 +22,10 @@ const tagSchema = new Schema<TagDocument>(
       enum: ["SYSTEM", "USER"],
       required: true,
     },
-    createdBy: {
-      type: Schema.Types.ObjectId,
-      required: true,
-    },
   },
   { timestamps: true }
 );
 
-// Prevent duplicate semantic tags
 tagSchema.index({ name: 1, type: 1 }, { unique: true });
 
 export default model<TagDocument>("Tag", tagSchema);
