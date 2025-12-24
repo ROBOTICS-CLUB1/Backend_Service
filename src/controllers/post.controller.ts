@@ -1,7 +1,8 @@
 import { Request, Response } from "express";
 import Post from "../models/Post";
 import Tag from "../models/Tag";
-import { uploadImage } from "../services/image.service"; // intentionally kept
+import { uploadImage, deleteImage } from "../services/image.service";
+import fs from "fs/promises";
 
 /**
  * @swagger
@@ -237,7 +238,9 @@ export const createPost = async (req: Request, res: Response) => {
     }
 
     const normalizedTagNames = [
-      ...new Set(tags.map((t: string) => t.trim().toLowerCase()).filter(Boolean)),
+      ...new Set(
+        tags.map((t: string) => t.trim().toLowerCase()).filter(Boolean)
+      ),
     ];
 
     const resolvedTags = [];
@@ -260,7 +263,7 @@ export const createPost = async (req: Request, res: Response) => {
         .json({ message: "mainTag must be a valid SYSTEM tag" });
     }
 
-    if (!resolvedTags.some(t => t._id.equals(mainTagDoc._id))) {
+    if (!resolvedTags.some((t) => t._id.equals(mainTagDoc._id))) {
       resolvedTags.push(mainTagDoc);
     }
 
@@ -268,7 +271,7 @@ export const createPost = async (req: Request, res: Response) => {
       title,
       content,
       author,
-      tags: resolvedTags.map(t => t._id),
+      tags: resolvedTags.map((t) => t._id),
       mainTag: mainTagDoc._id,
     });
 
@@ -358,11 +361,11 @@ export const updatePost = async (req: Request, res: Response) => {
           .json({ message: "mainTag must be a valid SYSTEM tag" });
       }
 
-      if (!resolvedTags.some(t => t._id.equals(mainTagDoc._id))) {
+      if (!resolvedTags.some((t) => t._id.equals(mainTagDoc._id))) {
         resolvedTags.push(mainTagDoc);
       }
 
-      post.tags = resolvedTags.map(t => t._id);
+      post.tags = resolvedTags.map((t) => t._id);
       post.mainTag = mainTagDoc._id;
     }
 
@@ -400,6 +403,102 @@ export const deletePost = async (req: Request, res: Response) => {
     }
 
     res.json({ message: "Post deleted successfully" });
+  } catch {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * @swagger
+ * /api/posts/{id}/image:
+ *   post:
+ *     summary: Upload an image for a post (admin only)
+ *     tags: [Posts]
+ *     security:
+ *       - bearerAuth: []
+ *     consumes:
+ *       - multipart/form-data
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: formData
+ *         name: image
+ *         type: file
+ *         required: true
+ *         description: Image file to upload
+ *     responses:
+ *       200:
+ *         description: Image uploaded successfully
+ *       400:
+ *         description: Invalid input or missing image
+ *       404:
+ *         description: Post not found
+ */
+export const uploadPostImage = async (req: Request, res: Response) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+
+    if (!req.file) {
+      return res.status(400).json({ message: "No image file provided" });
+    }
+
+    if (post.imagePublicId) {
+      await deleteImage(post.imagePublicId);
+    }
+
+    const fileBuffer = await fs.readFile(req.file.path);
+    const result = await uploadImage(fileBuffer, `posts/${post._id}`);
+    post.imageUrl = result.url;
+    post.imagePublicId = result.public_id;
+
+    await post.save();
+    await fs.unlink(req.file.path);
+
+    res.json({ message: "Image uploaded successfully", post });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * @swagger
+ * /api/posts/{id}/image:
+ *   delete:
+ *     summary: Remove a post's image (admin only)
+ *     tags: [Posts]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Image removed successfully
+ *       404:
+ *         description: Post not found or no image to remove
+ */
+export const removePostImage = async (req: Request, res: Response) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+
+    if (!post.imagePublicId) {
+      return res.status(404).json({ message: "No image to remove" });
+    }
+
+    await deleteImage(post.imagePublicId);
+    post.imageUrl = undefined;
+    post.imagePublicId = undefined;
+
+    await post.save();
+    res.json({ message: "Image removed successfully", post });
   } catch {
     res.status(500).json({ message: "Server error" });
   }
