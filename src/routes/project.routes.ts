@@ -5,6 +5,8 @@ import {
   createProject,
   updateProject,
   deleteProject,
+  uploadProjectImage,
+  removeProjectImage,
 } from "../controllers/project.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
 import { requireRoles } from "../middleware/role.middleware";
@@ -24,35 +26,29 @@ const router = Router({ mergeParams: true });
 router.get("/", getPostsQueryValidator, validate, getProjects);
 router.get("/:id", getProject);
 
-router.use(authMiddleware);
+// Protected routes: member or admin
+router.use(authMiddleware, requireRoles("member", "admin"));
 
-// Create project (member or admin)
-router.post(
-  "/",
-  requireRoles("member", "admin"),
-  upload,
-  createPostValidator, // Reuse, or create specific
-  validate,
-  createProject
-);
+// Create project
+router.post("/", upload, createPostValidator, validate, createProject);
 
-// Update project (owner or admin)
+// Update project
 router.put(
   "/:id",
-  requireRoles("member", "admin"),
   isOwnerOrAdmin(Project),
   upload,
-  updatePostValidator, // Reuse, or create specific
+  updatePostValidator,
   validate,
   updateProject
 );
 
-// Delete project (owner or admin)
-router.delete(
-  "/:id",
-  requireRoles("member", "admin"),
-  isOwnerOrAdmin(Project),
-  deleteProject
-);
+// Delete project
+router.delete("/:id", isOwnerOrAdmin(Project), deleteProject);
+
+//add project image
+router.post("/:id/image", upload, uploadProjectImage);
+
+// remove project image
+router.delete("/:id/image", removeProjectImage);
 
 export default router;
