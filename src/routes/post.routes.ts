@@ -26,21 +26,19 @@ router.get("/:id", getPost);
 // protected routes for posts management by admin only
 router.use(authMiddleware);
 
-// create post (with image upload)
+// create post 
 router.post(
   "/",
   requireRoles("admin"),
-  upload,
   createPostValidator,
   validate,
   createPost
 );
 
-// update post (with optional image upload)
+// update post 
 router.put(
   "/:id",
   requireRoles("admin"),
-  upload,
   updatePostValidator,
   validate,
   updatePost
