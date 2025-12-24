@@ -19,7 +19,7 @@ const postSchema = new Schema<PostDocument>(
   {
     title: { type: String, required: true },
     content: { type: String, required: true },
-    author: { type: Schema.Types.ObjectId, ref: "User", required: true }, // Fixed to ObjectId for consistency
+    author: { type: Schema.Types.ObjectId, ref: "User", required: true },
 
     tags: [
       {
@@ -41,20 +41,14 @@ const postSchema = new Schema<PostDocument>(
   { timestamps: true }
 );
 
-postSchema.pre<PostDocument>("validate", async function () {
-  const mainTagInTags = this.tags.some((tagId) => tagId.equals(this.mainTag));
-  if (!mainTagInTags) {
-    throw new Error("mainTag must be included in the tags array");
-  }
-
-  const mainTagDoc = await Tag.findById(this.mainTag);
-
-  if (!mainTagDoc) {
-    throw new Error("mainTag references a non-existent tag");
-  }
-
-  if (mainTagDoc.type !== "SYSTEM") {
-    throw new Error("mainTag must be a SYSTEM tag");
+// Pre-save hook: set a default imageUrl based on the mainTag name
+postSchema.pre<PostDocument>("save", async function () {
+  if (!this.imageUrl || this.imageUrl.trim() === "") {
+    const mainTagDoc = await Tag.findById(this.mainTag);
+    if (mainTagDoc) {
+      const seed = encodeURIComponent(mainTagDoc.name.trim());
+      this.imageUrl = `https://api.dicebear.com/7.x/initials/svg?seed=${seed}`;
+    }
   }
 });
 
