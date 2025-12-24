@@ -13,3 +13,15 @@ export const uploadImage = (fileBuffer: Buffer, folder = "posts") => {
     stream.end(fileBuffer);
   });
 };
+
+export const deleteImage = (publicId: string) => {
+  return new Promise<void>((resolve, reject) => {
+    cloudinary.uploader.destroy(publicId, { resource_type: "image" }, (error, result) => {
+      if (error) return reject(error);
+      if (result.result !== "ok" && result.result !== "not found") {
+        return reject(new Error(`Failed to delete image: ${result.result}`));
+      }
+      resolve();
+    });
+  });
+};
