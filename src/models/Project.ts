@@ -41,20 +41,14 @@ const projectSchema = new Schema<ProjectDocument>(
   { timestamps: true }
 );
 
-projectSchema.pre<ProjectDocument>("validate", async function () {
-  const mainTagInTags = this.tags.some((tagId) => tagId.equals(this.mainTag));
-  if (!mainTagInTags) {
-    throw new Error("mainTag must be included in the tags array");
-  }
-
-  const mainTagDoc = await Tag.findById(this.mainTag);
-
-  if (!mainTagDoc) {
-    throw new Error("mainTag references a non-existent tag");
-  }
-
-  if (mainTagDoc.type !== "SYSTEM") {
-    throw new Error("mainTag must be a SYSTEM tag");
+// Pre-save hook: set default image if none provided
+projectSchema.pre<ProjectDocument>("save", async function () {
+  if (!this.imageUrl || this.imageUrl.trim() === "") {
+    const mainTagDoc = await Tag.findById(this.mainTag);
+    if (mainTagDoc) {
+      const seed = encodeURIComponent(mainTagDoc.name.trim());
+      this.imageUrl = `https://api.dicebear.com/7.x/initials/svg?seed=${seed}`;
+    }
   }
 });
 
