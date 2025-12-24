@@ -1,7 +1,8 @@
 import { Request, Response } from "express";
 import Project from "../models/Project";
 import Tag from "../models/Tag";
-import { uploadImage } from "../services/image.service";
+import { uploadImage, deleteImage } from "../services/image.service";
+import fs from "fs/promises";
 
 /**
  * @swagger
@@ -239,14 +240,14 @@ export const getProject = async (req: Request, res: Response) => {
  * /api/projects:
  *   post:
  *     summary: Create a new project (member or admin)
- *     description: Members can showcase their own projects.
+ *     description: Members can showcase their own projects. Image uploads are handled separately.
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
- *         multipart/form-data:
+ *         application/json:
  *           schema:
  *             type: object
  *             required:
@@ -265,9 +266,6 @@ export const getProject = async (req: Request, res: Response) => {
  *                 type: array
  *                 items:
  *                   type: string
- *               image:
- *                 type: string
- *                 format: binary
  *     responses:
  *       201:
  *         description: Project created
@@ -287,57 +285,27 @@ export const createProject = async (req: Request, res: Response) => {
     const { title, content, tags: tagNames, mainTag: mainTagName } = req.body;
     const author = req.user!.id;
 
-    if (
-      !title ||
-      !content ||
-      !mainTagName ||
-      !tagNames ||
-      !Array.isArray(tagNames)
-    ) {
+    if (!title || !content || !mainTagName || !tagNames || !Array.isArray(tagNames)) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
     const tags: any[] = [];
     for (const name of tagNames) {
       let tag = await Tag.findOne({ name: name.toLowerCase() });
-      if (!tag) {
-        tag = await Tag.create({
-          name: name.toLowerCase(),
-          type: "USER",
-        });
-      }
+      if (!tag) tag = await Tag.create({ name: name.toLowerCase(), type: "USER" });
       tags.push(tag);
     }
 
-    const mainTagDoc = await Tag.findOne({
-      name: mainTagName.toLowerCase(),
-      type: "SYSTEM",
-    });
-    if (!mainTagDoc) {
-      return res
-        .status(400)
-        .json({ message: "mainTag must be a valid SYSTEM tag" });
-    }
-    if (!tags.some((t) => t._id.toString() === mainTagDoc._id.toString())) {
-      tags.push(mainTagDoc);
-    }
-
-    let imageUrl: string | undefined;
-    let imagePublicId: string | undefined;
-    if (req.file?.buffer) {
-      const result = await uploadImage(req.file.buffer, "projects");
-      imageUrl = result.url;
-      imagePublicId = result.public_id;
-    }
+    const mainTagDoc = await Tag.findOne({ name: mainTagName.toLowerCase(), type: "SYSTEM" });
+    if (!mainTagDoc) return res.status(400).json({ message: "mainTag must be a valid SYSTEM tag" });
+    if (!tags.some(t => t._id.toString() === mainTagDoc._id.toString())) tags.push(mainTagDoc);
 
     const project = new Project({
       title,
       content,
       author,
-      tags: tags.map((t) => t._id),
+      tags: tags.map(t => t._id),
       mainTag: mainTagDoc._id,
-      imageUrl,
-      imagePublicId,
     });
 
     await project.save();
@@ -355,6 +323,7 @@ export const createProject = async (req: Request, res: Response) => {
  * /api/projects/{id}:
  *   put:
  *     summary: Update a project (owner member or admin)
+ *     description: Update title, content, tags, or mainTag. Image updates are handled via separate endpoints.
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []
@@ -366,7 +335,7 @@ export const createProject = async (req: Request, res: Response) => {
  *           type: string
  *     requestBody:
  *       content:
- *         multipart/form-data:
+ *         application/json:
  *           schema:
  *             type: object
  *             properties:
@@ -380,9 +349,6 @@ export const createProject = async (req: Request, res: Response) => {
  *                 type: array
  *                 items:
  *                   type: string
- *               image:
- *                 type: string
- *                 format: binary
  *     responses:
  *       200:
  *         description: Project updated
@@ -405,17 +371,9 @@ export const updateProject = async (req: Request, res: Response) => {
     const { title, content, tags: tagNames, mainTag: mainTagName } = req.body;
 
     const project = await Project.findById(id);
-    if (!project) {
-      return res.status(404).json({ message: "Project not found" });
-    }
-
-    if (
-      req.user!.role !== "admin" &&
-      project.author.toString() !== req.user!.id
-    ) {
-      return res
-        .status(403)
-        .json({ message: "Not authorized to update this project" });
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (req.user!.role !== "admin" && project.author.toString() !== req.user!.id) {
+      return res.status(403).json({ message: "Not authorized to update this project" });
     }
 
     if (title !== undefined) project.title = title;
@@ -424,46 +382,23 @@ export const updateProject = async (req: Request, res: Response) => {
     if (tagNames !== undefined || mainTagName !== undefined) {
       if (!Array.isArray(tagNames) || !mainTagName) {
         return res.status(400).json({
-          message:
-            "Both 'tags' (array) and 'mainTag' must be provided to update tags",
+          message: "Both 'tags' (array) and 'mainTag' must be provided to update tags",
         });
       }
 
-      const author = req.user!.id;
       const tags: any[] = [];
-
       for (const name of tagNames) {
         let tag = await Tag.findOne({ name: name.toLowerCase() });
-        if (!tag) {
-          tag = await Tag.create({
-            name: name.toLowerCase(),
-            type: "USER",
-          });
-        }
+        if (!tag) tag = await Tag.create({ name: name.toLowerCase(), type: "USER" });
         tags.push(tag);
       }
 
-      const mainTagDoc = await Tag.findOne({
-        name: mainTagName.toLowerCase(),
-        type: "SYSTEM",
-      });
-      if (!mainTagDoc) {
-        return res
-          .status(400)
-          .json({ message: "mainTag must be a valid SYSTEM tag" });
-      }
-      if (!tags.some((t) => t._id.toString() === mainTagDoc._id.toString())) {
-        tags.push(mainTagDoc);
-      }
+      const mainTagDoc = await Tag.findOne({ name: mainTagName.toLowerCase(), type: "SYSTEM" });
+      if (!mainTagDoc) return res.status(400).json({ message: "mainTag must be a valid SYSTEM tag" });
+      if (!tags.some(t => t._id.toString() === mainTagDoc._id.toString())) tags.push(mainTagDoc);
 
-      project.tags = tags.map((t) => t._id);
+      project.tags = tags.map(t => t._id);
       project.mainTag = mainTagDoc._id;
-    }
-
-    if (req.file?.buffer) {
-      const result = await uploadImage(req.file.buffer, "projects");
-      project.imageUrl = result.url;
-      project.imagePublicId = result.public_id;
     }
 
     await project.save();
@@ -475,6 +410,7 @@ export const updateProject = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 /**
  * @swagger
@@ -532,5 +468,95 @@ export const deleteProject = async (req: Request, res: Response) => {
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * @swagger
+ * /api/projects/{id}/image:
+ *   post:
+ *     summary: Upload an image for a project (member or admin)
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     consumes:
+ *       - multipart/form-data
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: formData
+ *         name: image
+ *         type: file
+ *         required: true
+ *     responses:
+ *       200:
+ *         description: Image uploaded successfully
+ */
+export const uploadProjectImage = async (req: Request, res: Response) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+
+    if (!req.file)
+      return res.status(400).json({ message: "No image file provided" });
+
+    // Remove existing image if present
+    if (project.imagePublicId) {
+      await deleteImage(project.imagePublicId);
+    }
+
+    const fileBuffer = await fs.readFile(req.file.path);
+    const result = await uploadImage(fileBuffer, `projects/${project._id}`);
+    project.imageUrl = result.url;
+    project.imagePublicId = result.public_id;
+
+    await project.save();
+    await fs.unlink(req.file.path);
+
+    res.json({ message: "Image uploaded successfully", project });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * @swagger
+ * /api/projects/{id}/image:
+ *   delete:
+ *     summary: Remove a project's image (member or admin)
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Image removed successfully
+ */
+export const removeProjectImage = async (req: Request, res: Response) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+
+    if (!project.imagePublicId)
+      return res.status(404).json({ message: "No image to remove" });
+
+    await deleteImage(project.imagePublicId);
+    project.imageUrl = undefined;
+    project.imagePublicId = undefined;
+
+    await project.save();
+    res.json({ message: "Image removed successfully", project });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
   }
 };
